@@ -29,9 +29,9 @@ jobs:
       - name: 1단계 - 광고 수집
         run: python main.py | tee collect.log
 
+      # Gemini API 키는 추후 발급 후 GEMINI_API_KEY 시크릿과 env를 추가하면 분류가 활성화됨.
+      # 현재는 키 미설정 상태(config.json 플레이스홀더)로 두어, classify.py가 즉시 종료하도록 한다.
       - name: 2단계 - Gemini AI 분류
-        env:
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: python classify.py | tee classify.log
 
       - name: 3단계 - Google Sheets 동기화
