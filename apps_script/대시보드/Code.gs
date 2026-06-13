@@ -18,9 +18,6 @@
 var 시트이름_데이터 = "광고모니터링";
 var 시트이름_설정 = "설정";
 
-// 대시보드에서 수동으로 교체한 이미지를 저장할 폴더 이름 (내 드라이브 루트 아래)
-var 수동업로드_폴더명 = "광고모니터링_수동업로드";
-
 function doGet() {
   return HtmlService.createTemplateFromFile("Index")
     .evaluate()
@@ -117,47 +114,6 @@ function 광고_수정(ad_id, 소재유형, 보종, 후킹) {
   }
 
   return { success: false, error: "ad_id를 찾을 수 없습니다: " + ad_id };
-}
-
-/** ad_id로 행을 찾아 업로드된 이미지를 내 드라이브에 저장하고 이미지URL/이미지파일명 컬럼을 갱신한다. */
-function 이미지_수동업데이트(ad_id, base64Data, fileName, mimeType) {
-  var sheet = 시트_가져오기(시트이름_데이터);
-  if (!sheet) return { success: false, error: "시트를 찾을 수 없습니다: " + 시트이름_데이터 };
-
-  var 값 = sheet.getDataRange().getValues();
-  var 헤더 = 값[0];
-
-  var ad_id_열 = 헤더.indexOf("ad_id");
-  var 이미지URL_열 = 헤더.indexOf("이미지URL");
-  var 이미지파일명_열 = 헤더.indexOf("이미지파일명");
-
-  var 행번호 = -1;
-  for (var i = 1; i < 값.length; i++) {
-    if (String(값[i][ad_id_열]) === String(ad_id)) {
-      행번호 = i + 1;
-      break;
-    }
-  }
-  if (행번호 === -1) return { success: false, error: "ad_id를 찾을 수 없습니다: " + ad_id };
-
-  try {
-    var 폴더목록 = DriveApp.getRootFolder().getFoldersByName(수동업로드_폴더명);
-    var 폴더 = 폴더목록.hasNext() ? 폴더목록.next() : DriveApp.getRootFolder().createFolder(수동업로드_폴더명);
-
-    var 바이트 = Utilities.base64Decode(base64Data);
-    var blob = Utilities.newBlob(바이트, mimeType, fileName);
-    var 파일 = 폴더.createFile(blob);
-    파일.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
-
-    var url = "https://lh3.googleusercontent.com/d/" + 파일.getId();
-
-    if (이미지URL_열 >= 0) sheet.getRange(행번호, 이미지URL_열 + 1).setValue(url);
-    if (이미지파일명_열 >= 0) sheet.getRange(행번호, 이미지파일명_열 + 1).setValue(fileName);
-
-    return { success: true, url: url };
-  } catch (오류) {
-    return { success: false, error: String(오류) };
-  }
 }
 
 /** 설정 화면에서 입력한 광고주/소재유형/보종/후킹 목록으로 "설정" 시트를 다시 작성한다. */
