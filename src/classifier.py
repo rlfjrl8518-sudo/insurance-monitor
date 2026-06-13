@@ -74,8 +74,8 @@ def 광고_분류(model, 이미지_경로, 광고주, 광고텍스트, 설정):
             프롬프트,
         ],
         generation_config={"response_mime_type": "application/json"},
-        # 할당량 초과(429) 시 SDK가 긴 시간 동안 재시도하는 것을 막기 위해 호출당 최대 대기 시간을 짧게 제한
-        request_options={"timeout": 15},
+        # 할당량 초과(429) 등 오류 시 SDK가 긴 시간 동안 재시도하는 것을 막기 위해 호출당 최대 대기 시간을 짧게 제한
+        request_options={"timeout": 10},
     )
 
     결과 = json.loads(응답.text)
