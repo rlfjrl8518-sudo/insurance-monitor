@@ -5,9 +5,10 @@ Gemini API로 이미지+텍스트를 분석하여 소재유형/보종/후킹/요
 """
 
 import os
+import signal
 import time
 
-from google.api_core.exceptions import ResourceExhausted
+from google.api_core.exceptions import ResourceExhausted, TooManyRequests
 
 from src.classifier import Gemini_모델_생성, 광고_분류
 from src.config_loader import 경로_절대화, 설정_불러오기
@@ -18,6 +19,18 @@ from src.csv_store import CSV_쓰기, CSV_읽기
 
 # 연속으로 이 횟수만큼 실패하면 API 자체에 문제가 있는 것으로 보고 나머지는 건너뜀
 연속_실패_허용_횟수 = 3
+
+# 한 건당 최대 대기 시간(초) - SDK의 request_options 타임아웃이 적용되지 않는
+# 환경(예: CI)에서도 전체 실행이 멈추지 않도록 강제로 끊는다. (Windows에는 미적용)
+호출_최대_대기_초 = 20
+
+
+class _호출_시간초과(Exception):
+    pass
+
+
+def _시간초과_핸들러(signum, frame):
+    raise _호출_시간초과()
 
 
 def 실행():
@@ -58,6 +71,10 @@ def 실행():
             continue
 
         try:
+            if hasattr(signal, "SIGALRM"):
+                signal.signal(signal.SIGALRM, _시간초과_핸들러)
+                signal.alarm(호출_최대_대기_초)
+
             결과 = 광고_분류(model, 이미지_경로, 행["광고주"], 행["광고텍스트"], 설정)
             행["소재유형"] = 결과["소재유형"]
             행["보종"] = 결과["보종"]
@@ -67,11 +84,19 @@ def 실행():
             연속_실패_횟수 = 0
             print(f"[{i}/{len(대상_목록)}] {행['광고주']} / {행['ad_id']} "
                   f"-> 소재유형:{결과['소재유형']}, 보종:{결과['보종']}, 후킹:{결과['후킹']}")
-        except ResourceExhausted as e:
+        except (ResourceExhausted, TooManyRequests) as e:
             print(f"[{i}/{len(대상_목록)}] {행['ad_id']} - Gemini API 할당량 초과: {e}")
             print("할당량이 초과되어 남은 광고 분류를 건너뜁니다. (다음 실행에서 다시 시도합니다)")
             실패_개수 += len(대상_목록) - i + 1
             break
+        except _호출_시간초과:
+            print(f"[{i}/{len(대상_목록)}] {행['ad_id']} - Gemini API 응답 시간 초과({호출_최대_대기_초}초), 건너뜀")
+            실패_개수 += 1
+            연속_실패_횟수 += 1
+            if 연속_실패_횟수 >= 연속_실패_허용_횟수:
+                print(f"{연속_실패_허용_횟수}건 연속 실패하여 남은 광고 분류를 건너뜁니다. (다음 실행에서 다시 시도합니다)")
+                실패_개수 += len(대상_목록) - i
+                break
         except Exception as e:
             print(f"[{i}/{len(대상_목록)}] {행['ad_id']} - 분류 실패: {e}")
             실패_개수 += 1
@@ -80,6 +105,9 @@ def 실행():
                 print(f"{연속_실패_허용_횟수}건 연속 실패하여 남은 광고 분류를 건너뜁니다. (다음 실행에서 다시 시도합니다)")
                 실패_개수 += len(대상_목록) - i
                 break
+        finally:
+            if hasattr(signal, "SIGALRM"):
+                signal.alarm(0)
 
         time.sleep(호출_간격_초)
 

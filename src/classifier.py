@@ -15,8 +15,12 @@ import google.generativeai as genai
 
 
 def Gemini_모델_생성(설정):
-    """config.json의 Gemini 설정으로 GenerativeModel 인스턴스를 생성한다."""
-    genai.configure(api_key=설정["gemini"]["api_key"])
+    """config.json의 Gemini 설정으로 GenerativeModel 인스턴스를 생성한다.
+
+    gRPC 전송 시 API 키 자격증명 플러그인이 "Illegal header value" 오류와 함께
+    응답 없이 재시도를 반복하는 경우가 있어, REST 전송을 사용해 이를 회피한다.
+    """
+    genai.configure(api_key=설정["gemini"]["api_key"], transport="rest")
     return genai.GenerativeModel(설정["gemini"]["model"])
 
 
