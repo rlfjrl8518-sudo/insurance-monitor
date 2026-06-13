@@ -2,8 +2,8 @@ name: 경쟁사 광고 모니터링
 
 on:
   schedule:
-    - cron: "0 1 * * *" # 매일 10:00 KST (UTC 01:00)
-    - cron: "0 7 * * *" # 매일 16:00 KST (UTC 07:00)
+    - cron: "0 0 * * *" # 매일 09:00 KST (UTC 00:00)
+    - cron: "0 9 * * *" # 매일 18:00 KST (UTC 09:00)
   workflow_dispatch: {}
 
 permissions:
