@@ -70,7 +70,7 @@ def 설정_불러오기(설정_경로=기본_설정_경로):
         프로젝트_루트 = os.path.dirname(설정_경로)
         서비스계정_경로 = os.path.join(프로젝트_루트, 설정["google_sheets"]["service_account_file"])
         with open(서비스계정_경로, "w", encoding="utf-8") as f:
-            f.write(서비스계정_json)
+            f.write(_BOM_제거(서비스계정_json))
 
     return 설정
 
