@@ -86,6 +86,50 @@
       color: var(--text-light);
     }
 
+    /* 다중선택 드롭다운 */
+    .다중선택 { position: relative; }
+    .다중선택버튼 {
+      padding: 6px 8px;
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      font-size: 12px;
+      background: #fff;
+      cursor: pointer;
+      min-width: 110px;
+      max-width: 200px;
+      text-align: left;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .다중선택패널 {
+      display: none;
+      position: absolute;
+      top: calc(100% + 4px);
+      left: 0;
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      box-shadow: 0 4px 14px rgba(0,0,0,0.12);
+      padding: 6px;
+      z-index: 30;
+      min-width: 160px;
+      max-height: 240px;
+      overflow-y: auto;
+    }
+    .다중선택패널.열림 { display: block; }
+    .다중선택패널 label {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      padding: 4px 6px;
+      cursor: pointer;
+      white-space: nowrap;
+      border-radius: 4px;
+    }
+    .다중선택패널 label:hover { background: var(--bg); }
+
     #결과정보 {
       padding: 10px 20px 0;
       font-size: 13px;
@@ -249,6 +293,18 @@
       cursor: pointer;
       margin-top: 6px;
     }
+    #원본보기버튼 {
+      background: #fff;
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 9px 18px;
+      font-size: 13px;
+      cursor: pointer;
+      margin-top: 6px;
+      margin-left: 6px;
+    }
+    #원본보기버튼[disabled] { color: var(--text-light); cursor: not-allowed; }
     #저장상태 { font-size: 12px; margin-left: 10px; color: #1e8e3e; }
 
     /* 설정 팝업 */
@@ -288,10 +344,22 @@
 
     <span class="구분"></span>
 
-    <select id="광고주필터" onchange="필터적용()"><option value="">광고주: 전체</option></select>
-    <select id="소재유형필터" onchange="필터적용()"><option value="">소재유형: 전체</option></select>
-    <select id="보종필터" onchange="필터적용()"><option value="">보종: 전체</option></select>
-    <select id="후킹필터" onchange="필터적용()"><option value="">후킹: 전체</option></select>
+    <div class="다중선택" id="광고주필터래퍼">
+      <button type="button" class="다중선택버튼" onclick="다중선택토글('광고주')">광고주: 전체</button>
+      <div class="다중선택패널" id="광고주필터패널"></div>
+    </div>
+    <div class="다중선택" id="소재유형필터래퍼">
+      <button type="button" class="다중선택버튼" onclick="다중선택토글('소재유형')">소재유형: 전체</button>
+      <div class="다중선택패널" id="소재유형필터패널"></div>
+    </div>
+    <div class="다중선택" id="보종필터래퍼">
+      <button type="button" class="다중선택버튼" onclick="다중선택토글('보종')">보종: 전체</button>
+      <div class="다중선택패널" id="보종필터패널"></div>
+    </div>
+    <div class="다중선택" id="후킹필터래퍼">
+      <button type="button" class="다중선택버튼" onclick="다중선택토글('후킹')">후킹: 전체</button>
+      <div class="다중선택패널" id="후킹필터패널"></div>
+    </div>
 
     <span class="구분"></span>
 
@@ -372,6 +440,7 @@
 
         <div>
           <button id="저장버튼" onclick="저장()">저장</button>
+          <button id="원본보기버튼" onclick="원본광고열기()">Meta 원본 광고 보기</button>
           <span id="저장상태"></span>
         </div>
       </div>
@@ -416,6 +485,8 @@
     var 전체데이터 = [];
     var 설정값 = { 광고주: [], 소재유형: [], 보종: [], 후킹: [] };
     var 선택된ad_id = null;
+    var 다중선택상태 = { 광고주: [], 소재유형: [], 보종: [], 후킹: [] };
+    var 다중선택기본텍스트 = { 광고주: "광고주", 소재유형: "소재유형", 보종: "보종", 후킹: "후킹" };
 
     function 초기화() {
       google.script.run.withSuccessHandler(function (설정) {
@@ -431,38 +502,71 @@
     }
 
     function 필터옵션채우기() {
-      채우기("광고주필터", 설정값.광고주, "광고주: 전체");
-      채우기("소재유형필터", 설정값.소재유형, "소재유형: 전체");
-      채우기("보종필터", 설정값.보종, "보종: 전체");
-      채우기("후킹필터", 설정값.후킹, "후킹: 전체");
+      ["광고주", "소재유형", "보종", "후킹"].forEach(function (키) {
+        // 설정 목록에서 사라진 값은 선택 상태에서도 제거
+        다중선택상태[키] = 다중선택상태[키].filter(function (값) {
+          return (설정값[키] || []).indexOf(값) !== -1;
+        });
+        다중선택패널채우기(키, 설정값[키]);
+        다중선택버튼갱신(키);
+      });
     }
 
-    function 채우기(엘리먼트id, 목록, 기본텍스트) {
-      var 셀렉트 = document.getElementById(엘리먼트id);
-      var 현재값 = 셀렉트.value;
-      셀렉트.innerHTML = "";
-
-      var 기본옵션 = document.createElement("option");
-      기본옵션.value = "";
-      기본옵션.textContent = 기본텍스트;
-      셀렉트.appendChild(기본옵션);
+    function 다중선택패널채우기(키, 목록) {
+      var 패널 = document.getElementById(키 + "필터패널");
+      패널.innerHTML = "";
 
       (목록 || []).forEach(function (값) {
-        var 옵션 = document.createElement("option");
-        옵션.value = 값;
-        옵션.textContent = 값;
-        셀렉트.appendChild(옵션);
+        var label = document.createElement("label");
+        var 체크 = document.createElement("input");
+        체크.type = "checkbox";
+        체크.value = 값;
+        체크.checked = 다중선택상태[키].indexOf(값) !== -1;
+        체크.onchange = function () {
+          var idx = 다중선택상태[키].indexOf(값);
+          if (체크.checked) {
+            if (idx === -1) 다중선택상태[키].push(값);
+          } else if (idx !== -1) {
+            다중선택상태[키].splice(idx, 1);
+          }
+          다중선택버튼갱신(키);
+          필터적용();
+        };
+        label.appendChild(체크);
+        label.appendChild(document.createTextNode(값));
+        패널.appendChild(label);
       });
+    }
 
-      if (현재값 && (목록 || []).indexOf(현재값) !== -1) {
-        셀렉트.value = 현재값;
+    function 다중선택버튼갱신(키) {
+      var 버튼 = document.querySelector("#" + 키 + "필터래퍼 .다중선택버튼");
+      var 선택 = 다중선택상태[키];
+      var 기본텍스트 = 다중선택기본텍스트[키];
+
+      if (선택.length === 0) {
+        버튼.textContent = 기본텍스트 + ": 전체";
+      } else if (선택.length === 1) {
+        버튼.textContent = 기본텍스트 + ": " + 선택[0];
+      } else {
+        버튼.textContent = 기본텍스트 + ": " + 선택.length + "개 선택";
       }
+    }
+
+    function 다중선택토글(키) {
+      var 패널 = document.getElementById(키 + "필터패널");
+      var 열림 = 패널.classList.contains("열림");
+      document.querySelectorAll(".다중선택패널").forEach(function (p) {
+        p.classList.remove("열림");
+      });
+      if (!열림) 패널.classList.add("열림");
     }
 
     function 필터초기화() {
       document.getElementById("검색입력").value = "";
-      ["광고주필터", "소재유형필터", "보종필터", "후킹필터"].forEach(function (id) {
-        document.getElementById(id).value = "";
+      ["광고주", "소재유형", "보종", "후킹"].forEach(function (키) {
+        다중선택상태[키] = [];
+        다중선택패널채우기(키, 설정값[키]);
+        다중선택버튼갱신(키);
       });
       document.getElementById("상태필터").value = "전체";
       document.getElementById("운영일수필터").value = "0";
@@ -474,10 +578,6 @@
 
     function 필터적용() {
       var 검색어 = document.getElementById("검색입력").value.trim().toLowerCase();
-      var 광고주 = document.getElementById("광고주필터").value;
-      var 소재유형 = document.getElementById("소재유형필터").value;
-      var 보종 = document.getElementById("보종필터").value;
-      var 후킹 = document.getElementById("후킹필터").value;
       var 상태 = document.getElementById("상태필터").value;
       var 운영일수기준 = parseInt(document.getElementById("운영일수필터").value, 10) || 0;
       var 시작일_부터 = document.getElementById("시작일_부터").value;
@@ -486,10 +586,10 @@
       var 종료일_까지 = document.getElementById("종료일_까지").value;
 
       var 결과 = 전체데이터.filter(function (행) {
-        if (광고주 && 행.광고주 !== 광고주) return false;
-        if (소재유형 && 행.소재유형 !== 소재유형) return false;
-        if (보종 && 행.보종 !== 보종) return false;
-        if (후킹 && 행.후킹 !== 후킹) return false;
+        if (다중선택상태.광고주.length && 다중선택상태.광고주.indexOf(행.광고주) === -1) return false;
+        if (다중선택상태.소재유형.length && 다중선택상태.소재유형.indexOf(행.소재유형) === -1) return false;
+        if (다중선택상태.보종.length && 다중선택상태.보종.indexOf(행.보종) === -1) return false;
+        if (다중선택상태.후킹.length && 다중선택상태.후킹.indexOf(행.후킹) === -1) return false;
         if (상태 !== "전체" && 행.상태 !== 상태) return false;
         if (운영일수기준 && Number(행.운영일수 || 0) < 운영일수기준) return false;
 
@@ -623,8 +723,17 @@
       document.getElementById("상세기간").textContent =
         "시작일: " + (행.광고시작일 || "-") + " / 종료일: " + (행.광고종료일 || "-") + " / 수집일: " + (행.수집일 || "-");
 
+      var 원본보기버튼 = document.getElementById("원본보기버튼");
+      원본보기버튼.disabled = !행.광고상세URL;
+
       document.getElementById("저장상태").textContent = "";
       팝업열기("상세팝업");
+    }
+
+    function 원본광고열기() {
+      var 행 = 전체데이터.find(function (d) { return d.ad_id === 선택된ad_id; });
+      if (!행 || !행.광고상세URL) return;
+      window.open(행.광고상세URL, "_blank");
     }
 
     function 분류셀렉트채우기(엘리먼트id, 목록, 현재값) {
@@ -755,6 +864,14 @@
       모달.addEventListener("click", function (e) {
         if (e.target === 모달) 모달.classList.remove("열림");
       });
+    });
+
+    document.addEventListener("click", function (e) {
+      if (!e.target.closest(".다중선택")) {
+        document.querySelectorAll(".다중선택패널").forEach(function (p) {
+          p.classList.remove("열림");
+        });
+      }
     });
 
     초기화();
