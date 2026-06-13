@@ -4,7 +4,12 @@ on:
   schedule:
     - cron: "0 0 * * *" # 매일 09:00 KST (UTC 00:00)
     - cron: "0 9 * * *" # 매일 18:00 KST (UTC 09:00)
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      skip_classification:
+        description: "Gemini AI 분류(2단계) 건너뛰기"
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -30,6 +35,7 @@ jobs:
         run: python main.py | tee collect.log
 
       - name: 2단계 - Gemini AI 분류
+        if: ${{ inputs.skip_classification != true }}
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: python classify.py | tee classify.log
