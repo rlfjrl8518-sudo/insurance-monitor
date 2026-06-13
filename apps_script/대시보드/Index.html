@@ -1,0 +1,763 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <meta charset="utf-8">
+  <style>
+    :root {
+      --accent: #f0782a;
+      --bg: #f3f4f6;
+      --card-bg: #ffffff;
+      --border: #e0e2e6;
+      --text: #222;
+      --text-light: #888;
+    }
+    * { box-sizing: border-box; }
+    body {
+      font-family: "Malgun Gothic", "Apple SD Gothic Neo", sans-serif;
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+    }
+    header {
+      background: #fff;
+      border-bottom: 1px solid var(--border);
+      padding: 14px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky;
+      top: 0;
+      z-index: 20;
+    }
+    header h1 {
+      font-size: 18px;
+      margin: 0;
+    }
+    header button {
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      padding: 8px 14px;
+      font-size: 13px;
+      cursor: pointer;
+    }
+
+    #필터바 {
+      background: #fff;
+      border-bottom: 1px solid var(--border);
+      padding: 10px 20px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+      position: sticky;
+      top: 53px;
+      z-index: 19;
+    }
+    #필터바 input, #필터바 select {
+      padding: 6px 8px;
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      font-size: 12px;
+    }
+    #검색입력 { width: 220px; }
+    #필터바 label {
+      font-size: 12px;
+      color: var(--text-light);
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    #필터바 .구분 {
+      width: 1px;
+      height: 22px;
+      background: var(--border);
+      margin: 0 2px;
+    }
+    #필터초기화버튼 {
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      padding: 6px 12px;
+      font-size: 12px;
+      cursor: pointer;
+      color: var(--text-light);
+    }
+
+    #결과정보 {
+      padding: 10px 20px 0;
+      font-size: 13px;
+      color: var(--text-light);
+    }
+
+    #갤러리 { padding: 10px 20px 40px; }
+    .광고주섹션 { margin-top: 18px; }
+    .광고주섹션 h2 {
+      font-size: 15px;
+      margin: 0 0 10px;
+      padding-bottom: 6px;
+      border-bottom: 2px solid var(--accent);
+      display: inline-block;
+    }
+    .카드그리드 {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: 14px;
+    }
+    .카드 {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      overflow: hidden;
+      cursor: pointer;
+      transition: box-shadow 0.15s, transform 0.15s;
+    }
+    .카드:hover {
+      box-shadow: 0 4px 14px rgba(0,0,0,0.1);
+      transform: translateY(-2px);
+    }
+    .카드 .이미지영역 {
+      width: 100%;
+      aspect-ratio: 1 / 1;
+      background: #f0f0f0;
+      overflow: hidden;
+    }
+    .카드 .이미지영역 img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+    .카드 .정보 { padding: 10px; }
+    .카드 .정보 .태그줄 {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+      margin-bottom: 6px;
+    }
+    .태그 {
+      display: inline-block;
+      font-size: 11px;
+      padding: 2px 7px;
+      border-radius: 10px;
+      background: #eef1f5;
+      color: #555;
+    }
+    .태그.빈값 { color: #bbb; }
+    .상태배지 {
+      font-size: 11px;
+      padding: 2px 7px;
+      border-radius: 10px;
+      font-weight: bold;
+    }
+    .상태배지.신규 { background: #e6f4ea; color: #1e8e3e; }
+    .상태배지.운영중 { background: #e8f0fe; color: #1a73e8; }
+    .상태배지.종료 { background: #f1f1f1; color: #999; }
+    .카드 .하단줄 {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 12px;
+      color: var(--text-light);
+    }
+
+    #빈결과 {
+      text-align: center;
+      color: var(--text-light);
+      padding: 60px 0;
+      font-size: 14px;
+    }
+    #로딩 {
+      text-align: center;
+      color: var(--text-light);
+      padding: 60px 0;
+      font-size: 14px;
+    }
+
+    /* 모달 공통 */
+    .모달 {
+      display: none;
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.45);
+      z-index: 100;
+      align-items: center;
+      justify-content: center;
+    }
+    .모달.열림 { display: flex; }
+    .모달내용 {
+      background: #fff;
+      border-radius: 10px;
+      max-width: 720px;
+      width: 92%;
+      max-height: 88vh;
+      overflow-y: auto;
+      padding: 24px;
+      position: relative;
+    }
+    .닫기버튼 {
+      position: absolute;
+      top: 12px; right: 14px;
+      border: none;
+      background: none;
+      font-size: 22px;
+      cursor: pointer;
+      color: #999;
+      line-height: 1;
+    }
+
+    /* 상세 팝업 */
+    #상세팝업 .모달내용 { display: flex; gap: 20px; flex-wrap: wrap; }
+    #상세이미지래퍼 { flex: 1 1 260px; }
+    #상세이미지 { width: 100%; border-radius: 8px; border: 1px solid var(--border); }
+    #상세정보 { flex: 1 1 320px; min-width: 280px; }
+    #상세정보 h2 { margin: 0 0 6px; font-size: 17px; }
+    #상세정보 .상태운영 { font-size: 12px; color: var(--text-light); margin-bottom: 12px; }
+    .필드그룹 { margin-bottom: 12px; }
+    .필드그룹 label {
+      display: block;
+      font-size: 12px;
+      color: var(--text-light);
+      margin-bottom: 4px;
+    }
+    .필드그룹 select, .필드그룹 textarea {
+      width: 100%;
+      padding: 6px 8px;
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      font-size: 13px;
+      font-family: inherit;
+    }
+    .필드그룹 textarea { resize: vertical; min-height: 50px; }
+    .필드그룹 .읽기전용 {
+      font-size: 13px;
+      padding: 6px 0;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .분류행 { display: flex; gap: 10px; }
+    .분류행 .필드그룹 { flex: 1; }
+    #저장버튼 {
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      padding: 9px 18px;
+      font-size: 13px;
+      cursor: pointer;
+      margin-top: 6px;
+    }
+    #저장상태 { font-size: 12px; margin-left: 10px; color: #1e8e3e; }
+
+    /* 설정 팝업 */
+    #설정팝업 h2 { margin-top: 0; font-size: 17px; }
+    #설정팝업 .설정그리드 {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 14px;
+      margin-bottom: 16px;
+    }
+    #설정팝업 .필드그룹 textarea { min-height: 140px; }
+    #설정팝업 .안내 {
+      font-size: 12px;
+      color: var(--text-light);
+      margin-bottom: 14px;
+    }
+    #설정저장버튼 {
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      padding: 9px 18px;
+      font-size: 13px;
+      cursor: pointer;
+    }
+    #설정저장상태 { font-size: 12px; margin-left: 10px; color: #1e8e3e; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>한화손해보험 경쟁사 광고 모니터링</h1>
+    <button onclick="설정열기()">⚙ 설정</button>
+  </header>
+
+  <div id="필터바">
+    <input type="text" id="검색입력" placeholder="광고 텍스트 / 광고주 검색" oninput="필터적용()">
+
+    <span class="구분"></span>
+
+    <select id="광고주필터" onchange="필터적용()"><option value="">광고주: 전체</option></select>
+    <select id="소재유형필터" onchange="필터적용()"><option value="">소재유형: 전체</option></select>
+    <select id="보종필터" onchange="필터적용()"><option value="">보종: 전체</option></select>
+    <select id="후킹필터" onchange="필터적용()"><option value="">후킹: 전체</option></select>
+
+    <span class="구분"></span>
+
+    <select id="상태필터" onchange="필터적용()">
+      <option value="전체">상태: 전체</option>
+      <option value="신규">신규만</option>
+      <option value="운영중">운영중만</option>
+      <option value="종료">종료만</option>
+    </select>
+
+    <select id="운영일수필터" onchange="필터적용()">
+      <option value="0">운영일수: 전체</option>
+      <option value="7">7일 이상</option>
+      <option value="30">30일 이상</option>
+      <option value="60">60일 이상</option>
+    </select>
+
+    <span class="구분"></span>
+
+    <label>시작일
+      <input type="date" id="시작일_부터" onchange="필터적용()">
+      ~
+      <input type="date" id="시작일_까지" onchange="필터적용()">
+    </label>
+    <label>종료일
+      <input type="date" id="종료일_부터" onchange="필터적용()">
+      ~
+      <input type="date" id="종료일_까지" onchange="필터적용()">
+    </label>
+
+    <button id="필터초기화버튼" onclick="필터초기화()">필터 초기화</button>
+  </div>
+
+  <div id="결과정보"></div>
+  <div id="로딩">불러오는 중...</div>
+  <div id="갤러리"></div>
+
+  <!-- 상세 팝업 -->
+  <div id="상세팝업" class="모달">
+    <div class="모달내용">
+      <button class="닫기버튼" onclick="팝업닫기('상세팝업')">&times;</button>
+      <div id="상세이미지래퍼">
+        <img id="상세이미지" src="" alt="광고 이미지">
+      </div>
+      <div id="상세정보">
+        <h2 id="상세광고주"></h2>
+        <div class="상태운영" id="상세상태운영"></div>
+
+        <div class="분류행">
+          <div class="필드그룹">
+            <label>소재유형</label>
+            <select id="상세소재유형"></select>
+          </div>
+          <div class="필드그룹">
+            <label>보종</label>
+            <select id="상세보종"></select>
+          </div>
+          <div class="필드그룹">
+            <label>후킹</label>
+            <select id="상세후킹"></select>
+          </div>
+        </div>
+
+        <div class="필드그룹">
+          <label>광고 텍스트</label>
+          <div class="읽기전용" id="상세광고텍스트"></div>
+        </div>
+
+        <div class="필드그룹">
+          <label>AI 요약</label>
+          <div class="읽기전용" id="상세요약"></div>
+        </div>
+
+        <div class="필드그룹">
+          <label>기간</label>
+          <div class="읽기전용" id="상세기간"></div>
+        </div>
+
+        <div>
+          <button id="저장버튼" onclick="저장()">저장</button>
+          <span id="저장상태"></span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 설정 팝업 -->
+  <div id="설정팝업" class="모달">
+    <div class="모달내용">
+      <button class="닫기버튼" onclick="팝업닫기('설정팝업')">&times;</button>
+      <h2>설정</h2>
+      <div class="안내">
+        한 줄에 항목 하나씩 입력하세요. 여기서 수정한 내용은 "설정" 시트에 저장되며,
+        필터/검색 및 상세 팝업의 분류 선택 항목에 반영됩니다.
+      </div>
+      <div class="설정그리드">
+        <div class="필드그룹">
+          <label>광고주</label>
+          <textarea id="설정_광고주"></textarea>
+        </div>
+        <div class="필드그룹">
+          <label>소재유형</label>
+          <textarea id="설정_소재유형"></textarea>
+        </div>
+        <div class="필드그룹">
+          <label>보종</label>
+          <textarea id="설정_보종"></textarea>
+        </div>
+        <div class="필드그룹">
+          <label>후킹</label>
+          <textarea id="설정_후킹"></textarea>
+        </div>
+      </div>
+      <div>
+        <button id="설정저장버튼" onclick="설정저장()">저장</button>
+        <span id="설정저장상태"></span>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    var 전체데이터 = [];
+    var 설정값 = { 광고주: [], 소재유형: [], 보종: [], 후킹: [] };
+    var 선택된ad_id = null;
+
+    function 초기화() {
+      google.script.run.withSuccessHandler(function (설정) {
+        설정값 = 설정;
+        필터옵션채우기();
+      }).설정값_가져오기();
+
+      google.script.run.withSuccessHandler(function (데이터) {
+        전체데이터 = 데이터;
+        document.getElementById("로딩").style.display = "none";
+        필터적용();
+      }).광고데이터_가져오기();
+    }
+
+    function 필터옵션채우기() {
+      채우기("광고주필터", 설정값.광고주, "광고주: 전체");
+      채우기("소재유형필터", 설정값.소재유형, "소재유형: 전체");
+      채우기("보종필터", 설정값.보종, "보종: 전체");
+      채우기("후킹필터", 설정값.후킹, "후킹: 전체");
+    }
+
+    function 채우기(엘리먼트id, 목록, 기본텍스트) {
+      var 셀렉트 = document.getElementById(엘리먼트id);
+      var 현재값 = 셀렉트.value;
+      셀렉트.innerHTML = "";
+
+      var 기본옵션 = document.createElement("option");
+      기본옵션.value = "";
+      기본옵션.textContent = 기본텍스트;
+      셀렉트.appendChild(기본옵션);
+
+      (목록 || []).forEach(function (값) {
+        var 옵션 = document.createElement("option");
+        옵션.value = 값;
+        옵션.textContent = 값;
+        셀렉트.appendChild(옵션);
+      });
+
+      if (현재값 && (목록 || []).indexOf(현재값) !== -1) {
+        셀렉트.value = 현재값;
+      }
+    }
+
+    function 필터초기화() {
+      document.getElementById("검색입력").value = "";
+      ["광고주필터", "소재유형필터", "보종필터", "후킹필터"].forEach(function (id) {
+        document.getElementById(id).value = "";
+      });
+      document.getElementById("상태필터").value = "전체";
+      document.getElementById("운영일수필터").value = "0";
+      ["시작일_부터", "시작일_까지", "종료일_부터", "종료일_까지"].forEach(function (id) {
+        document.getElementById(id).value = "";
+      });
+      필터적용();
+    }
+
+    function 필터적용() {
+      var 검색어 = document.getElementById("검색입력").value.trim().toLowerCase();
+      var 광고주 = document.getElementById("광고주필터").value;
+      var 소재유형 = document.getElementById("소재유형필터").value;
+      var 보종 = document.getElementById("보종필터").value;
+      var 후킹 = document.getElementById("후킹필터").value;
+      var 상태 = document.getElementById("상태필터").value;
+      var 운영일수기준 = parseInt(document.getElementById("운영일수필터").value, 10) || 0;
+      var 시작일_부터 = document.getElementById("시작일_부터").value;
+      var 시작일_까지 = document.getElementById("시작일_까지").value;
+      var 종료일_부터 = document.getElementById("종료일_부터").value;
+      var 종료일_까지 = document.getElementById("종료일_까지").value;
+
+      var 결과 = 전체데이터.filter(function (행) {
+        if (광고주 && 행.광고주 !== 광고주) return false;
+        if (소재유형 && 행.소재유형 !== 소재유형) return false;
+        if (보종 && 행.보종 !== 보종) return false;
+        if (후킹 && 행.후킹 !== 후킹) return false;
+        if (상태 !== "전체" && 행.상태 !== 상태) return false;
+        if (운영일수기준 && Number(행.운영일수 || 0) < 운영일수기준) return false;
+
+        if (시작일_부터 && (!행.광고시작일 || 행.광고시작일 < 시작일_부터)) return false;
+        if (시작일_까지 && (!행.광고시작일 || 행.광고시작일 > 시작일_까지)) return false;
+        if (종료일_부터 && (!행.광고종료일 || 행.광고종료일 < 종료일_부터)) return false;
+        if (종료일_까지 && (!행.광고종료일 || 행.광고종료일 > 종료일_까지)) return false;
+
+        if (검색어) {
+          var 텍스트 = ((행.광고텍스트 || "") + " " + (행.광고주 || "")).toLowerCase();
+          if (텍스트.indexOf(검색어) === -1) return false;
+        }
+        return true;
+      });
+
+      렌더링(결과);
+    }
+
+    function 렌더링(데이터) {
+      var 갤러리 = document.getElementById("갤러리");
+      var 결과정보 = document.getElementById("결과정보");
+      갤러리.innerHTML = "";
+      결과정보.textContent = "총 " + 데이터.length + "건";
+
+      if (데이터.length === 0) {
+        갤러리.innerHTML = '<div id="빈결과">조건에 맞는 광고가 없습니다.</div>';
+        return;
+      }
+
+      var 그룹 = {};
+      var 광고주순서 = [];
+
+      데이터.forEach(function (행) {
+        var 키 = 행.광고주 || "(광고주 미지정)";
+        if (!그룹[키]) {
+          그룹[키] = [];
+          광고주순서.push(키);
+        }
+        그룹[키].push(행);
+      });
+
+      // 설정 시트에 등록된 광고주 순서를 우선 적용하고, 그 외 값은 뒤에 붙인다.
+      var 정렬순서 = (설정값.광고주 || []).filter(function (이름) { return 그룹[이름]; });
+      광고주순서.forEach(function (이름) {
+        if (정렬순서.indexOf(이름) === -1) 정렬순서.push(이름);
+      });
+
+      정렬순서.forEach(function (광고주명) {
+        var 섹션 = document.createElement("div");
+        섹션.className = "광고주섹션";
+
+        var 제목 = document.createElement("h2");
+        제목.textContent = 광고주명 + " (" + 그룹[광고주명].length + "건)";
+        섹션.appendChild(제목);
+
+        var 그리드 = document.createElement("div");
+        그리드.className = "카드그리드";
+
+        그룹[광고주명].forEach(function (행) {
+          그리드.appendChild(카드만들기(행));
+        });
+
+        섹션.appendChild(그리드);
+        갤러리.appendChild(섹션);
+      });
+    }
+
+    function 카드만들기(행) {
+      var 카드 = document.createElement("div");
+      카드.className = "카드";
+      카드.onclick = function () { 상세열기(행.ad_id); };
+
+      var 이미지영역 = document.createElement("div");
+      이미지영역.className = "이미지영역";
+      if (행.이미지URL) {
+        var img = document.createElement("img");
+        img.src = 행.이미지URL;
+        img.loading = "lazy";
+        이미지영역.appendChild(img);
+      }
+      카드.appendChild(이미지영역);
+
+      var 정보 = document.createElement("div");
+      정보.className = "정보";
+
+      var 태그줄 = document.createElement("div");
+      태그줄.className = "태그줄";
+      [행.소재유형, 행.보종, 행.후킹].forEach(function (값) {
+        var 태그 = document.createElement("span");
+        태그.className = "태그" + (값 ? "" : " 빈값");
+        태그.textContent = 값 || "미분류";
+        태그줄.appendChild(태그);
+      });
+      정보.appendChild(태그줄);
+
+      var 하단줄 = document.createElement("div");
+      하단줄.className = "하단줄";
+
+      var 상태배지 = document.createElement("span");
+      상태배지.className = "상태배지 " + (행.상태 || "");
+      상태배지.textContent = 행.상태 || "-";
+      하단줄.appendChild(상태배지);
+
+      var 운영일수 = document.createElement("span");
+      운영일수.textContent = "운영 " + (행.운영일수 || 0) + "일";
+      하단줄.appendChild(운영일수);
+
+      정보.appendChild(하단줄);
+      카드.appendChild(정보);
+
+      return 카드;
+    }
+
+    function 상세열기(ad_id) {
+      var 행 = 전체데이터.find(function (d) { return d.ad_id === ad_id; });
+      if (!행) return;
+
+      선택된ad_id = ad_id;
+
+      document.getElementById("상세이미지").src = 행.이미지URL || "";
+      document.getElementById("상세광고주").textContent = 행.광고주 || "";
+      document.getElementById("상세상태운영").textContent =
+        "상태: " + (행.상태 || "-") + " · 운영일수: " + (행.운영일수 || 0) + "일 · 최초발견일: " + (행.최초발견일 || "-");
+
+      분류셀렉트채우기("상세소재유형", 설정값.소재유형, 행.소재유형);
+      분류셀렉트채우기("상세보종", 설정값.보종, 행.보종);
+      분류셀렉트채우기("상세후킹", 설정값.후킹, 행.후킹);
+
+      document.getElementById("상세광고텍스트").textContent = 행.광고텍스트 || "(텍스트 없음)";
+      document.getElementById("상세요약").textContent = 행.요약 || "(요약 없음)";
+      document.getElementById("상세기간").textContent =
+        "시작일: " + (행.광고시작일 || "-") + " / 종료일: " + (행.광고종료일 || "-") + " / 수집일: " + (행.수집일 || "-");
+
+      document.getElementById("저장상태").textContent = "";
+      팝업열기("상세팝업");
+    }
+
+    function 분류셀렉트채우기(엘리먼트id, 목록, 현재값) {
+      var 셀렉트 = document.getElementById(엘리먼트id);
+      셀렉트.innerHTML = "";
+
+      var 미분류옵션 = document.createElement("option");
+      미분류옵션.value = "";
+      미분류옵션.textContent = "(미분류)";
+      셀렉트.appendChild(미분류옵션);
+
+      var 전체목록 = (목록 || []).slice();
+      if (현재값 && 전체목록.indexOf(현재값) === -1) {
+        전체목록.push(현재값);
+      }
+
+      전체목록.forEach(function (값) {
+        var 옵션 = document.createElement("option");
+        옵션.value = 값;
+        옵션.textContent = 값;
+        셀렉트.appendChild(옵션);
+      });
+
+      셀렉트.value = 현재값 || "";
+    }
+
+    function 저장() {
+      if (!선택된ad_id) return;
+
+      var 소재유형 = document.getElementById("상세소재유형").value;
+      var 보종 = document.getElementById("상세보종").value;
+      var 후킹 = document.getElementById("상세후킹").value;
+
+      var 저장버튼 = document.getElementById("저장버튼");
+      var 저장상태 = document.getElementById("저장상태");
+      저장버튼.disabled = true;
+      저장상태.style.color = "#1e8e3e";
+      저장상태.textContent = "저장 중...";
+
+      google.script.run
+        .withSuccessHandler(function (결과) {
+          저장버튼.disabled = false;
+          if (결과 && 결과.success) {
+            저장상태.style.color = "#1e8e3e";
+            저장상태.textContent = "저장되었습니다.";
+
+            var 행 = 전체데이터.find(function (d) { return d.ad_id === 선택된ad_id; });
+            if (행) {
+              행.소재유형 = 소재유형;
+              행.보종 = 보종;
+              행.후킹 = 후킹;
+            }
+            필터적용();
+          } else {
+            저장상태.style.color = "#d93025";
+            저장상태.textContent = "저장 실패: " + (결과 && 결과.error ? 결과.error : "알 수 없는 오류");
+          }
+        })
+        .withFailureHandler(function (오류) {
+          저장버튼.disabled = false;
+          저장상태.style.color = "#d93025";
+          저장상태.textContent = "저장 실패: " + 오류.message;
+        })
+        .광고_수정(선택된ad_id, 소재유형, 보종, 후킹);
+    }
+
+    function 설정열기() {
+      document.getElementById("설정_광고주").value = (설정값.광고주 || []).join("\n");
+      document.getElementById("설정_소재유형").value = (설정값.소재유형 || []).join("\n");
+      document.getElementById("설정_보종").value = (설정값.보종 || []).join("\n");
+      document.getElementById("설정_후킹").value = (설정값.후킹 || []).join("\n");
+      document.getElementById("설정저장상태").textContent = "";
+      팝업열기("설정팝업");
+    }
+
+    function 줄목록(엘리먼트id) {
+      return document.getElementById(엘리먼트id).value
+        .split("\n")
+        .map(function (s) { return s.trim(); })
+        .filter(function (s) { return s.length > 0; });
+    }
+
+    function 설정저장() {
+      var 새설정 = {
+        광고주: 줄목록("설정_광고주"),
+        소재유형: 줄목록("설정_소재유형"),
+        보종: 줄목록("설정_보종"),
+        후킹: 줄목록("설정_후킹"),
+      };
+
+      var 버튼 = document.getElementById("설정저장버튼");
+      var 상태 = document.getElementById("설정저장상태");
+      버튼.disabled = true;
+      상태.style.color = "#1e8e3e";
+      상태.textContent = "저장 중...";
+
+      google.script.run
+        .withSuccessHandler(function (결과) {
+          버튼.disabled = false;
+          if (결과 && 결과.success) {
+            설정값 = 새설정;
+            필터옵션채우기();
+            상태.style.color = "#1e8e3e";
+            상태.textContent = "저장되었습니다.";
+            필터적용();
+          } else {
+            상태.style.color = "#d93025";
+            상태.textContent = "저장 실패: " + (결과 && 결과.error ? 결과.error : "알 수 없는 오류");
+          }
+        })
+        .withFailureHandler(function (오류) {
+          버튼.disabled = false;
+          상태.style.color = "#d93025";
+          상태.textContent = "저장 실패: " + 오류.message;
+        })
+        .설정_저장(새설정);
+    }
+
+    function 팝업열기(id) {
+      document.getElementById(id).classList.add("열림");
+    }
+
+    function 팝업닫기(id) {
+      document.getElementById(id).classList.remove("열림");
+    }
+
+    document.querySelectorAll(".모달").forEach(function (모달) {
+      모달.addEventListener("click", function (e) {
+        if (e.target === 모달) 모달.classList.remove("열림");
+      });
+    });
+
+    초기화();
+  </script>
+</body>
+</html>

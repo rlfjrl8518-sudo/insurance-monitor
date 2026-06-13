@@ -1,0 +1,63 @@
+name: 경쟁사 광고 모니터링
+
+on:
+  schedule:
+    - cron: "0 1 * * *" # 매일 10:00 KST (UTC 01:00)
+    - cron: "0 7 * * *" # 매일 16:00 KST (UTC 07:00)
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  monitor:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 저장소 체크아웃
+        uses: actions/checkout@v4
+
+      - name: Python 설치
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: 의존성 설치
+        run: |
+          pip install -r requirements.txt
+          playwright install --with-deps chromium
+
+      - name: 1단계 - 광고 수집
+        run: python main.py | tee collect.log
+
+      - name: 2단계 - Gemini AI 분류
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: python classify.py | tee classify.log
+
+      - name: 3단계 - Google Sheets 동기화
+        env:
+          GOOGLE_SHEETS_ID: ${{ secrets.GOOGLE_SHEETS_ID }}
+          GOOGLE_DRIVE_FOLDER_ID: ${{ secrets.GOOGLE_DRIVE_FOLDER_ID }}
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          DRIVE_UPLOAD_WEBAPP_URL: ${{ secrets.DRIVE_UPLOAD_WEBAPP_URL }}
+          DRIVE_UPLOAD_SECRET: ${{ secrets.DRIVE_UPLOAD_SECRET }}
+        run: python sync_sheets.py | tee sync.log
+
+      - name: 실행 로그 업로드
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: 실행로그-${{ github.run_number }}
+          path: |
+            collect.log
+            classify.log
+            sync.log
+          retention-days: 30
+
+      - name: 변경된 데이터 커밋
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/ads.csv
+          git diff --cached --quiet || git commit -m "데이터 갱신: $(TZ='Asia/Seoul' date +'%Y-%m-%d %H:%M %Z')"
+          git push

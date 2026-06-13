@@ -1,0 +1,20 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Claude Code 로컬 설정
+.claude/
+
+# 민감 정보 (실제 키가 채워진 로컬 설정/인증 파일)
+service_account.json
+.env
+
+# 수집 데이터 (이미지는 실행마다 새로 받으므로 git에 올리지 않음)
+data/images/*
+!data/images/.gitkeep
+
+# Playwright
+playwright-report/
+test-results/

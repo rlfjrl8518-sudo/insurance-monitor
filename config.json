@@ -1,0 +1,39 @@
+{
+  "advertisers": [
+    "삼성화재",
+    "DB손해보험",
+    "KB손해보험",
+    "현대해상",
+    "메리츠화재"
+  ],
+  "classification": {
+    "소재유형": ["비갱신", "특약", "브랜딩"],
+    "보종": ["건강보험", "암보험", "운전자보험", "어린이보험", "간병인보험", "종합보험", "기타"],
+    "후킹": ["가격", "보장", "긴급성", "가입편의", "감성"]
+  },
+  "gemini": {
+    "api_key": "여기에_GEMINI_API_KEY_입력",
+    "model": "gemini-2.0-flash"
+  },
+  "google_sheets": {
+    "spreadsheet_id": "여기에_GOOGLE_SHEETS_ID_입력",
+    "drive_folder_id": "여기에_GOOGLE_DRIVE_FOLDER_ID_입력",
+    "service_account_file": "service_account.json",
+    "worksheet_name": "광고모니터링",
+    "drive_upload_webapp_url": "여기에_DRIVE_UPLOAD_WEBAPP_URL_입력",
+    "drive_upload_secret": "여기에_DRIVE_UPLOAD_SECRET_입력"
+  },
+  "scraping": {
+    "country": "KR",
+    "active_status": "active",
+    "ad_type": "all",
+    "scroll_count": 8,
+    "scroll_wait_seconds": 2.5,
+    "page_load_wait_seconds": 4,
+    "headless": true
+  },
+  "paths": {
+    "csv_file": "data/ads.csv",
+    "images_dir": "data/images"
+  }
+}
