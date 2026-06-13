@@ -13,8 +13,8 @@ from src.classifier import Gemini_모델_생성, 광고_분류
 from src.config_loader import 경로_절대화, 설정_불러오기
 from src.csv_store import CSV_쓰기, CSV_읽기
 
-# Gemini API 호출 간 대기 시간(초) - 분당 호출 제한 대응
-호출_간격_초 = 1.5
+# Gemini API 호출 간 대기 시간(초) - 분당 호출 제한(무료 등급 기준 분당 15회) 대응
+호출_간격_초 = 4.5
 
 # 연속으로 이 횟수만큼 실패하면 API 자체에 문제가 있는 것으로 보고 나머지는 건너뜀
 연속_실패_허용_횟수 = 3
