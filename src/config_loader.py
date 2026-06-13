@@ -15,19 +15,24 @@ import os
 기본_설정_경로 = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "config.json")
 
 
+def _BOM_제거(값):
+    """GitHub Secrets 등록 과정 등에서 값 앞에 섞여 들어올 수 있는 BOM(﻿) 문자를 제거한다."""
+    return 값.replace("﻿", "").strip()
+
+
 def _env_파일_불러오기(프로젝트_루트):
     """.env 파일이 있으면 KEY=VALUE 줄을 읽어 환경 변수로 설정한다 (이미 설정된 값은 덮어쓰지 않음)."""
     env_경로 = os.path.join(프로젝트_루트, ".env")
     if not os.path.exists(env_경로):
         return
 
-    with open(env_경로, "r", encoding="utf-8") as f:
+    with open(env_경로, "r", encoding="utf-8-sig") as f:
         for 줄 in f:
             줄 = 줄.strip()
             if not 줄 or 줄.startswith("#") or "=" not in 줄:
                 continue
             키, 값 = 줄.split("=", 1)
-            os.environ.setdefault(키.strip(), 값.strip())
+            os.environ.setdefault(키.strip(), _BOM_제거(값))
 
 
 def 설정_불러오기(설정_경로=기본_설정_경로):
@@ -40,24 +45,24 @@ def 설정_불러오기(설정_경로=기본_설정_경로):
     # Gemini API 키: 환경 변수(GEMINI_API_KEY)가 있으면 우선 사용
     gemini_키 = os.environ.get("GEMINI_API_KEY")
     if gemini_키:
-        설정["gemini"]["api_key"] = gemini_키
+        설정["gemini"]["api_key"] = _BOM_제거(gemini_키)
 
     # 구글 시트/드라이브 ID: 환경 변수가 있으면 우선 사용
     시트_id = os.environ.get("GOOGLE_SHEETS_ID")
     if 시트_id:
-        설정["google_sheets"]["spreadsheet_id"] = 시트_id
+        설정["google_sheets"]["spreadsheet_id"] = _BOM_제거(시트_id)
 
     드라이브_폴더_id = os.environ.get("GOOGLE_DRIVE_FOLDER_ID")
     if 드라이브_폴더_id:
-        설정["google_sheets"]["drive_folder_id"] = 드라이브_폴더_id
+        설정["google_sheets"]["drive_folder_id"] = _BOM_제거(드라이브_폴더_id)
 
     업로드_웹앱_url = os.environ.get("DRIVE_UPLOAD_WEBAPP_URL")
     if 업로드_웹앱_url:
-        설정["google_sheets"]["drive_upload_webapp_url"] = 업로드_웹앱_url
+        설정["google_sheets"]["drive_upload_webapp_url"] = _BOM_제거(업로드_웹앱_url)
 
     업로드_비밀키 = os.environ.get("DRIVE_UPLOAD_SECRET")
     if 업로드_비밀키:
-        설정["google_sheets"]["drive_upload_secret"] = 업로드_비밀키
+        설정["google_sheets"]["drive_upload_secret"] = _BOM_제거(업로드_비밀키)
 
     # 구글 서비스 계정 JSON: 환경 변수에 JSON 전체 내용이 들어있으면 파일로 저장
     서비스계정_json = os.environ.get("GOOGLE_SERVICE_ACCOUNT_JSON")

@@ -15,7 +15,7 @@
   },
   "gemini": {
     "api_key": "여기에_GEMINI_API_KEY_입력",
-    "model": "gemini-2.0-flash"
+    "model": "gemini-2.5-flash"
   },
   "google_sheets": {
     "spreadsheet_id": "여기에_GOOGLE_SHEETS_ID_입력",
