@@ -13,6 +13,7 @@ from google.api_core.exceptions import ResourceExhausted, TooManyRequests
 from src.classifier import Gemini_모델_생성, 광고_분류
 from src.config_loader import 경로_절대화, 설정_불러오기
 from src.csv_store import CSV_쓰기, CSV_읽기
+from src.sheets_sync import 설정_동적_적용
 
 # Gemini API 호출 간 대기 시간(초) - 분당 호출 제한 대응
 호출_간격_초 = 6.5
@@ -36,6 +37,8 @@ def _시간초과_핸들러(signum, frame):
 
 def 실행():
     설정 = 설정_불러오기()
+    서비스계정_경로 = 경로_절대화(설정["google_sheets"]["service_account_file"])
+    설정 = 설정_동적_적용(설정, 서비스계정_경로)
 
     if "여기에_" in 설정["gemini"]["api_key"]:
         print("config.json의 gemini.api_key를 설정한 뒤 다시 실행해주세요.")

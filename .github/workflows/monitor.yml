@@ -32,12 +32,17 @@ jobs:
           playwright install --with-deps chromium
 
       - name: 1단계 - 광고 수집
+        env:
+          GOOGLE_SHEETS_ID: ${{ secrets.GOOGLE_SHEETS_ID }}
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
         run: python main.py | tee collect.log
 
       - name: 2단계 - Gemini AI 분류
         if: ${{ inputs.skip_classification != true }}
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GOOGLE_SHEETS_ID: ${{ secrets.GOOGLE_SHEETS_ID }}
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
         run: python classify.py | tee classify.log
 
       - name: 3단계 - Google Sheets 동기화

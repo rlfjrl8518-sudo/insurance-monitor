@@ -112,6 +112,66 @@ def 설정_시트_초기화(gc, 설정):
     워크시트.update(데이터, "A1")
 
 
+def 설정_시트_읽기(gc, 설정):
+    """'설정' 워크시트에서 광고주/소재유형/보종/후킹 목록을 읽어온다.
+
+    시트가 없거나 비어 있으면 각 항목이 빈 리스트인 딕셔너리를 반환한다.
+    """
+    결과 = {컬럼: [] for 컬럼 in 설정_시트_컬럼}
+
+    스프레드시트 = gc.open_by_key(설정["google_sheets"]["spreadsheet_id"])
+    try:
+        워크시트 = 스프레드시트.worksheet(설정_시트이름)
+    except gspread.WorksheetNotFound:
+        return 결과
+
+    값 = 워크시트.get_all_values()
+    if len(값) < 2:
+        return 결과
+
+    헤더 = 값[0]
+    for 열번호, 컬럼명 in enumerate(헤더):
+        if 컬럼명 not in 결과:
+            continue
+        for 행 in 값[1:]:
+            if 열번호 < len(행) and 행[열번호]:
+                결과[컬럼명].append(행[열번호])
+
+    return 결과
+
+
+def 설정_동적_적용(설정, 서비스계정_경로):
+    """'설정' 시트에 입력된 광고주/소재유형/후킹 목록이 있으면 설정값을 덮어쓴다.
+
+    대시보드 "설정" 화면에서 이 값들을 바꾸면 다음 수집/분류부터 바로 반영되도록 한다.
+    보종은 분류 규칙(src/classifier.py)이 카테고리별 키워드/우선순위를 코드로
+    정의하고 있어 시트 값으로 덮어쓰지 않는다 (검증용 목록은 config.json 값 유지).
+
+    시트 접근에 실패하면 config.json 값을 그대로 사용한다.
+    """
+    if "여기에_" in 설정["google_sheets"]["spreadsheet_id"]:
+        return 설정
+    if not os.path.exists(서비스계정_경로):
+        return 설정
+
+    try:
+        gc = 구글_인증(서비스계정_경로)
+        설정_시트_초기화(gc, 설정)
+        시트설정 = 설정_시트_읽기(gc, 설정)
+    except Exception as e:
+        print(f"'설정' 시트를 읽지 못해 config.json 기본값을 사용합니다: {e}")
+        return 설정
+
+    if 시트설정["광고주"]:
+        설정["advertisers"] = 시트설정["광고주"]
+    if 시트설정["소재유형"]:
+        설정["classification"]["소재유형"] = 시트설정["소재유형"]
+    if 시트설정["후킹"]:
+        설정["classification"]["후킹"] = 시트설정["후킹"]
+
+    return 설정
+
+
 def 이미지_업로드(설정, 이미지_경로, 파일명, 광고주, 수집일, 소재유형):
     """Apps Script 웹앱에 이미지를 base64로 전송하여 구글 드라이브에 저장하고 공개 보기 링크를 반환한다.
 

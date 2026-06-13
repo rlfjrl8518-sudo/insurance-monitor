@@ -11,12 +11,15 @@ from playwright.sync_api import sync_playwright
 from src.config_loader import 경로_절대화, 설정_불러오기
 from src.csv_store import CSV_쓰기, CSV_읽기, 광고ID_생성, 데이터_병합
 from src.scraper import 광고주_광고_수집, 이미지_다운로드, 이미지_확장자_추출
+from src.sheets_sync import 설정_동적_적용
 
 import os
 
 
 def 실행():
     설정 = 설정_불러오기()
+    서비스계정_경로 = 경로_절대화(설정["google_sheets"]["service_account_file"])
+    설정 = 설정_동적_적용(설정, 서비스계정_경로)
 
     csv_경로 = 경로_절대화(설정["paths"]["csv_file"])
     이미지_폴더 = 경로_절대화(설정["paths"]["images_dir"])
