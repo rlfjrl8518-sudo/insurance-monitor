@@ -7,6 +7,8 @@ Gemini API로 이미지+텍스트를 분석하여 소재유형/보종/후킹/요
 import os
 import time
 
+from google.api_core.exceptions import ResourceExhausted
+
 from src.classifier import Gemini_모델_생성, 광고_분류
 from src.config_loader import 경로_절대화, 설정_불러오기
 from src.csv_store import CSV_쓰기, CSV_읽기
@@ -60,6 +62,11 @@ def 실행():
             성공_개수 += 1
             print(f"[{i}/{len(대상_목록)}] {행['광고주']} / {행['ad_id']} "
                   f"-> 소재유형:{결과['소재유형']}, 보종:{결과['보종']}, 후킹:{결과['후킹']}")
+        except ResourceExhausted as e:
+            print(f"[{i}/{len(대상_목록)}] {행['ad_id']} - Gemini API 할당량 초과: {e}")
+            print("할당량이 초과되어 남은 광고 분류를 건너뜁니다. (다음 실행에서 다시 시도합니다)")
+            실패_개수 += len(대상_목록) - i + 1
+            break
         except Exception as e:
             print(f"[{i}/{len(대상_목록)}] {행['ad_id']} - 분류 실패: {e}")
             실패_개수 += 1
