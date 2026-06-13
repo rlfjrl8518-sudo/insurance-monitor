@@ -78,8 +78,9 @@ def 광고_분류(model, 이미지_경로, 광고주, 광고텍스트, 설정):
             프롬프트,
         ],
         generation_config={"response_mime_type": "application/json"},
-        # 할당량 초과(429) 등 오류 시 SDK가 긴 시간 동안 재시도하는 것을 막기 위해 호출당 최대 대기 시간을 짧게 제한
-        request_options={"timeout": 10},
+        # gemini-2.5-flash는 추론(thinking) 과정으로 응답이 길어질 수 있어 충분히 여유를 둔다.
+        # 할당량 초과(429) 등 오류 시 SDK가 과도하게 재시도하는 것은 이 타임아웃으로 제한된다.
+        request_options={"timeout": 60},
     )
 
     결과 = json.loads(응답.text)

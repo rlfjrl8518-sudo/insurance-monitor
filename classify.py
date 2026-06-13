@@ -14,15 +14,16 @@ from src.classifier import Gemini_모델_생성, 광고_분류
 from src.config_loader import 경로_절대화, 설정_불러오기
 from src.csv_store import CSV_쓰기, CSV_읽기
 
-# Gemini API 호출 간 대기 시간(초) - 분당 호출 제한(무료 등급 기준 분당 15회) 대응
-호출_간격_초 = 4.5
+# Gemini API 호출 간 대기 시간(초) - 분당 호출 제한 대응
+호출_간격_초 = 6.5
 
 # 연속으로 이 횟수만큼 실패하면 API 자체에 문제가 있는 것으로 보고 나머지는 건너뜀
 연속_실패_허용_횟수 = 3
 
 # 한 건당 최대 대기 시간(초) - SDK의 request_options 타임아웃이 적용되지 않는
 # 환경(예: CI)에서도 전체 실행이 멈추지 않도록 강제로 끊는다. (Windows에는 미적용)
-호출_최대_대기_초 = 20
+# gemini-2.5-flash의 추론 시간을 고려해 request_options 타임아웃(60초)보다 넉넉하게 설정
+호출_최대_대기_초 = 75
 
 
 class _호출_시간초과(Exception):
