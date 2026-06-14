@@ -168,6 +168,20 @@
       cursor: pointer;
       color: var(--text-light);
     }
+    #그룹토글버튼 {
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      padding: 6px 12px;
+      font-size: 12px;
+      cursor: pointer;
+      color: var(--text-light);
+    }
+    #그룹토글버튼.활성 {
+      background: var(--accent);
+      color: #fff;
+      border-color: var(--accent);
+    }
 
     /* 다중선택 드롭다운 */
     .다중선택 { position: relative; }
@@ -488,6 +502,55 @@
       font-size: 12px;
       cursor: pointer;
     }
+    #그룹설정목록 {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+    .그룹블록 {
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 8px;
+    }
+    .그룹블록헤더 {
+      display: flex;
+      gap: 6px;
+      margin-bottom: 6px;
+    }
+    .그룹이름입력 {
+      flex: 1;
+      font-weight: bold;
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      padding: 4px 6px;
+      font-size: 13px;
+    }
+    .그룹삭제버튼 {
+      border: 1px solid var(--border);
+      background: #fff;
+      border-radius: 5px;
+      padding: 4px 8px;
+      font-size: 12px;
+      cursor: pointer;
+      color: #d93025;
+    }
+    .그룹광고주선택 {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px 14px;
+      max-height: 120px;
+      overflow-y: auto;
+      padding: 4px;
+    }
+    .그룹광고주선택 label {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 12px;
+      white-space: nowrap;
+      cursor: pointer;
+    }
     #설정저장버튼 {
       background: var(--accent);
       color: #fff;
@@ -588,6 +651,7 @@
       <input type="date" id="종료일_까지" onchange="필터적용()">
     </label>
 
+    <button id="그룹토글버튼" onclick="그룹핑토글()">그룹명으로 보기</button>
     <button id="필터초기화버튼" onclick="필터초기화()">필터 초기화</button>
   </div>
 
@@ -603,6 +667,7 @@
       <select id="분석기준" onchange="분석렌더링()">
         <option value="광고주">광고주별</option>
         <option value="카테고리">카테고리별</option>
+        <option value="그룹">그룹별</option>
       </select>
 
       <label for="분석카테고리필터">카테고리</label>
@@ -716,6 +781,16 @@
         <input type="text" id="새카테고리이름" placeholder="새 카테고리 이름 (예: 생명보험)">
         <button type="button" onclick="카테고리추가()">+ 카테고리 추가</button>
       </div>
+      <h3>광고주 그룹</h3>
+      <div class="안내">
+        여러 광고주명을 하나의 그룹으로 묶어서 갤러리/필터/분석에서 그룹명으로 볼 수 있습니다.
+        (예: "삼성화재 다이렉트" + "삼성화재 생명보호" → "삼성화재")
+      </div>
+      <div id="그룹설정목록"></div>
+      <div class="카테고리추가행">
+        <input type="text" id="새그룹이름" placeholder="새 그룹 이름 (예: 삼성화재)">
+        <button type="button" onclick="그룹추가()">+ 그룹 추가</button>
+      </div>
       <h3>분류 항목</h3>
       <div class="설정그리드">
         <div class="필드그룹">
@@ -741,8 +816,9 @@
   <script src="https://www.gstatic.com/charts/loader.js"></script>
   <script>
     var 전체데이터 = [];
-    var 설정값 = { 카테고리: {}, 소재유형: [], 보종: [], 후킹: [] };
+    var 설정값 = { 카테고리: {}, 소재유형: [], 보종: [], 후킹: [], 광고주그룹: {} };
     var 선택된ad_id = null;
+    var 그룹핑적용 = false;
     var 다중선택상태 = { 카테고리: [], 광고주: [], 소재유형: [], 보종: [], 후킹: [] };
     var 다중선택기본텍스트 = { 카테고리: "카테고리", 광고주: "광고주", 소재유형: "소재유형", 보종: "보종", 후킹: "후킹" };
     var 현재탭 = "갤러리탭";
@@ -770,6 +846,54 @@
         });
       });
       return 맵;
+    }
+
+    // 광고주명 -> 그룹명 매핑을 반환한다.
+    function 광고주그룹맵() {
+      var 맵 = {};
+      Object.keys(설정값.광고주그룹 || {}).forEach(function (그룹명) {
+        (설정값.광고주그룹[그룹명] || []).forEach(function (광고주) {
+          맵[광고주] = 그룹명;
+        });
+      });
+      return 맵;
+    }
+
+    // 그룹핑적용 여부에 따라 각 행의 표시용 광고주명(__표시광고주)을 갱신한다.
+    // (그룹핑적용=true면 그룹에 속한 광고주는 그룹명으로, 아니면 원래 광고주명을 그대로 사용)
+    function 표시광고주명_갱신() {
+      var 그룹맵 = 광고주그룹맵();
+      전체데이터.forEach(function (행) {
+        행.__표시광고주 = (그룹핑적용 && 그룹맵[행.광고주]) ? 그룹맵[행.광고주] : 행.광고주;
+      });
+    }
+
+    // 광고주 필터 옵션/갤러리 정렬 순서에 사용할 표시명 목록. 그룹핑적용 시 그룹명 기준으로 중복 제거한다.
+    function 표시이름목록() {
+      if (!그룹핑적용) return 광고주옵션목록();
+      return 그룹화이름목록();
+    }
+
+    // 분석탭 "그룹별" 비교에 사용할 표시명 목록 (토글 상태와 무관하게 항상 그룹 적용).
+    function 그룹화이름목록() {
+      var 그룹맵 = 광고주그룹맵();
+      var 결과 = [];
+      광고주옵션목록().forEach(function (이름) {
+        var 표시 = 그룹맵[이름] || 이름;
+        if (결과.indexOf(표시) === -1) 결과.push(표시);
+      });
+      return 결과;
+    }
+
+    // "그룹명으로 보기" / "원본 광고주명 보기" 토글
+    function 그룹핑토글() {
+      그룹핑적용 = !그룹핑적용;
+      var 버튼 = document.getElementById("그룹토글버튼");
+      버튼.textContent = 그룹핑적용 ? "원본 광고주명 보기" : "그룹명으로 보기";
+      버튼.classList.toggle("활성", 그룹핑적용);
+      표시광고주명_갱신();
+      필터옵션채우기();
+      필터적용();
     }
 
     // 자사(구분=자사) 광고주명을 데이터에서 추출한다.
@@ -804,12 +928,14 @@
     function 초기화() {
       google.script.run.withSuccessHandler(function (설정) {
         설정값 = 설정;
+        표시광고주명_갱신();
         필터옵션채우기();
         분석옵션채우기();
       }).설정값_가져오기();
 
       google.script.run.withSuccessHandler(function (데이터) {
         전체데이터 = 데이터;
+        표시광고주명_갱신();
         document.getElementById("로딩").style.display = "none";
         필터옵션채우기();
         분석옵션채우기();
@@ -830,7 +956,8 @@
 
         if (카테고리필터 && 카테고리필터.length && 카테고리필터.indexOf(행카테고리) === -1) return;
 
-        if (행.광고주) 결과.광고주[행.광고주] = true;
+        var 표시광고주 = 행.__표시광고주 || 행.광고주;
+        if (표시광고주) 결과.광고주[표시광고주] = true;
         if (행.소재유형) 결과.소재유형[행.소재유형] = true;
         if (행.보종) 결과.보종[행.보종] = true;
         if (행.후킹) 결과.후킹[행.후킹] = true;
@@ -842,7 +969,7 @@
       var 존재 = 존재값집합(다중선택상태.카테고리);
       var 옵션맵 = {
         카테고리: Object.keys(설정값.카테고리 || {}).filter(function (v) { return 존재.카테고리[v]; }),
-        광고주: 광고주옵션목록().filter(function (v) { return 존재.광고주[v]; }),
+        광고주: 표시이름목록().filter(function (v) { return 존재.광고주[v]; }),
         소재유형: (설정값.소재유형 || []).filter(function (v) { return 존재.소재유형[v]; }),
         보종: (설정값.보종 || []).filter(function (v) { return 존재.보종[v]; }),
         후킹: (설정값.후킹 || []).filter(function (v) { return 존재.후킹[v]; }),
@@ -964,7 +1091,7 @@
 
       var 결과 = 전체데이터.filter(function (행) {
         if (다중선택상태.카테고리.length && 다중선택상태.카테고리.indexOf(광고주카테고리[행.광고주]) === -1) return false;
-        if (다중선택상태.광고주.length && 다중선택상태.광고주.indexOf(행.광고주) === -1) return false;
+        if (다중선택상태.광고주.length && 다중선택상태.광고주.indexOf(행.__표시광고주 || 행.광고주) === -1) return false;
         if (다중선택상태.소재유형.length && 다중선택상태.소재유형.indexOf(행.소재유형) === -1) return false;
         if (다중선택상태.보종.length && 다중선택상태.보종.indexOf(행.보종) === -1) return false;
         if (다중선택상태.후킹.length && 다중선택상태.후킹.indexOf(행.후킹) === -1) return false;
@@ -1002,7 +1129,7 @@
       var 광고주순서 = [];
 
       데이터.forEach(function (행) {
-        var 키 = 행.광고주 || "(광고주 미지정)";
+        var 키 = 행.__표시광고주 || 행.광고주 || "(광고주 미지정)";
         if (!그룹[키]) {
           그룹[키] = [];
           광고주순서.push(키);
@@ -1010,8 +1137,8 @@
         그룹[키].push(행);
       });
 
-      // 설정에 등록된 광고주 순서(자사 -> 카테고리 순)를 우선 적용하고, 그 외 값은 뒤에 붙인다.
-      var 정렬순서 = 정렬순서계산().filter(function (이름) { return 그룹[이름]; });
+      // 설정에 등록된 광고주(또는 그룹) 순서(자사 -> 카테고리 순)를 우선 적용하고, 그 외 값은 뒤에 붙인다.
+      var 정렬순서 = 표시이름목록().filter(function (이름) { return 그룹[이름]; });
       광고주순서.forEach(function (이름) {
         if (정렬순서.indexOf(이름) === -1) 정렬순서.push(이름);
       });
@@ -1206,6 +1333,7 @@
 
     function 설정열기() {
       카테고리설정목록렌더링(설정값.카테고리);
+      그룹설정목록렌더링(설정값.광고주그룹);
       document.getElementById("설정_소재유형").value = (설정값.소재유형 || []).join("\n");
       document.getElementById("설정_보종").value = (설정값.보종 || []).join("\n");
       document.getElementById("설정_후킹").value = (설정값.후킹 || []).join("\n");
@@ -1261,6 +1389,71 @@
       입력.value = "";
     }
 
+    function 그룹설정목록렌더링(그룹맵) {
+      var 목록 = document.getElementById("그룹설정목록");
+      목록.innerHTML = "";
+      Object.keys(그룹맵 || {}).forEach(function (이름) {
+        목록.appendChild(그룹블록만들기(이름, 그룹맵[이름]));
+      });
+    }
+
+    // 그룹명 입력 + 포함할 광고주명을 체크박스로 선택하는 블록을 만든다.
+    // 선택 후보는 설정에 등록된 모든 광고주명(자사+카테고리)이며,
+    // 이미 그룹에 포함되어 있지만 후보 목록에 없는 광고주명도 함께 보여준다.
+    function 그룹블록만들기(이름, 포함광고주목록) {
+      var 블록 = document.createElement("div");
+      블록.className = "그룹블록";
+
+      var 헤더행 = document.createElement("div");
+      헤더행.className = "그룹블록헤더";
+
+      var 이름입력 = document.createElement("input");
+      이름입력.type = "text";
+      이름입력.className = "그룹이름입력";
+      이름입력.value = 이름;
+      이름입력.placeholder = "그룹 이름";
+
+      var 삭제버튼 = document.createElement("button");
+      삭제버튼.type = "button";
+      삭제버튼.className = "그룹삭제버튼";
+      삭제버튼.textContent = "삭제";
+      삭제버튼.onclick = function () { 블록.remove(); };
+
+      헤더행.appendChild(이름입력);
+      헤더행.appendChild(삭제버튼);
+
+      var 선택영역 = document.createElement("div");
+      선택영역.className = "그룹광고주선택";
+
+      var 후보목록 = 광고주옵션목록().slice();
+      (포함광고주목록 || []).forEach(function (광고주) {
+        if (후보목록.indexOf(광고주) === -1) 후보목록.push(광고주);
+      });
+
+      후보목록.forEach(function (광고주) {
+        var label = document.createElement("label");
+        var 체크 = document.createElement("input");
+        체크.type = "checkbox";
+        체크.value = 광고주;
+        체크.checked = (포함광고주목록 || []).indexOf(광고주) !== -1;
+        label.appendChild(체크);
+        label.appendChild(document.createTextNode(광고주));
+        선택영역.appendChild(label);
+      });
+
+      블록.appendChild(헤더행);
+      블록.appendChild(선택영역);
+      return 블록;
+    }
+
+    function 그룹추가() {
+      var 입력 = document.getElementById("새그룹이름");
+      var 이름 = 입력.value.trim();
+      if (!이름) return;
+      document.getElementById("그룹설정목록").appendChild(그룹블록만들기(이름, []));
+      입력.value = "";
+    }
+
     function 줄목록(엘리먼트id) {
       return document.getElementById(엘리먼트id).value
         .split("\n")
@@ -1280,11 +1473,23 @@
         카테고리[이름] = 광고주목록;
       });
 
+      var 광고주그룹 = {};
+      document.querySelectorAll("#그룹설정목록 .그룹블록").forEach(function (블록) {
+        var 이름 = 블록.querySelector(".그룹이름입력").value.trim();
+        if (!이름) return;
+        var 포함목록 = [];
+        블록.querySelectorAll(".그룹광고주선택 input[type=checkbox]").forEach(function (체크) {
+          if (체크.checked) 포함목록.push(체크.value);
+        });
+        광고주그룹[이름] = 포함목록;
+      });
+
       var 새설정 = {
         카테고리: 카테고리,
         소재유형: 줄목록("설정_소재유형"),
         보종: 줄목록("설정_보종"),
         후킹: 줄목록("설정_후킹"),
+        광고주그룹: 광고주그룹,
       };
 
       var 버튼 = document.getElementById("설정저장버튼");
@@ -1298,6 +1503,7 @@
           버튼.disabled = false;
           if (결과 && 결과.success) {
             설정값 = 새설정;
+            표시광고주명_갱신();
             필터옵션채우기();
             분석옵션채우기();
             상태.style.color = "#1e8e3e";
@@ -1376,13 +1582,16 @@
       return 순서;
     }
 
-    // 분석 탭 비교 기준("광고주"/"카테고리")에 따라 각 행에 __분석그룹 필드를 채운다.
+    // 분석 탭 비교 기준("광고주"/"카테고리"/"그룹")에 따라 각 행에 __분석그룹 필드를 채운다.
     function 분석그룹맵핑적용() {
       var 기준 = document.getElementById("분석기준").value;
       var 카테고리맵 = 광고주카테고리맵();
+      var 그룹맵 = 광고주그룹맵();
       전체데이터.forEach(function (행) {
         if (기준 === "카테고리") {
           행.__분석그룹 = 행.구분 === "자사" ? 행.광고주 : (카테고리맵[행.광고주] || "(미분류)");
+        } else if (기준 === "그룹") {
+          행.__분석그룹 = 그룹맵[행.광고주] || 행.광고주;
         } else {
           행.__분석그룹 = 행.광고주;
         }
@@ -1390,11 +1599,14 @@
       return 기준;
     }
 
-    // 분석 탭 비교 기준에 따른 그룹 표시 순서(자사 -> 카테고리/광고주 등록 순)를 반환한다.
+    // 분석 탭 비교 기준에 따른 그룹 표시 순서(자사 -> 카테고리/그룹/광고주 등록 순)를 반환한다.
     function 분석그룹우선순위(기준) {
       var 자사목록 = 자사광고주목록();
       if (기준 === "카테고리") {
         return 자사목록.concat(Object.keys(설정값.카테고리 || {}));
+      }
+      if (기준 === "그룹") {
+        return 그룹화이름목록();
       }
       return 정렬순서계산();
     }
@@ -1466,7 +1678,7 @@
       if (!차트로드완료 || !전체데이터.length) return;
       var 기준 = 분석그룹맵핑적용();
       분석필터데이터 = 분석데이터계산();
-      var 기준라벨 = 기준 === "카테고리" ? "카테고리별" : "광고주별";
+      var 기준라벨 = 기준 === "카테고리" ? "카테고리별" : (기준 === "그룹" ? "그룹별" : "광고주별");
       ["차트2제목", "차트3제목", "차트4제목"].forEach(function (id) {
         var el = document.getElementById(id);
         el.textContent = 기준라벨 + " " + el.textContent.replace(/^(광고주별|카테고리별) /, "");

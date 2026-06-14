@@ -17,6 +17,7 @@
 
 var 시트이름_데이터 = "광고모니터링";
 var 시트이름_설정 = "설정";
+var 시트이름_광고주그룹 = "광고주그룹";
 
 // "설정" 시트에서 고정된 의미를 갖는 컬럼 (나머지 컬럼은 모두 광고주 카테고리로 취급)
 var 고정_분류_컬럼 = ["소재유형", "보종", "후킹"];
@@ -73,19 +74,59 @@ function 광고데이터_가져오기() {
  * 결과의 카테고리 항목에 { 카테고리명: [광고주, ...] } 형태로 담긴다.
  */
 function 설정값_가져오기() {
-  var 결과 = { 카테고리: {}, 소재유형: [], 보종: [], 후킹: [] };
+  var 결과 = { 카테고리: {}, 소재유형: [], 보종: [], 후킹: [], 광고주그룹: {} };
 
   var sheet = 시트_가져오기(시트이름_설정);
+  if (sheet) {
+    var 값 = sheet.getDataRange().getValues();
+
+    if (값.length >= 2) {
+      var 헤더 = 값[0];
+
+      for (var col = 0; col < 헤더.length; col++) {
+        var 키 = String(헤더[col] || "").trim();
+        if (!키) continue;
+
+        var 목록 = [];
+        for (var i = 1; i < 값.length; i++) {
+          var v = 값[i][col];
+          if (v !== "" && v !== null && v !== undefined) {
+            목록.push(String(v));
+          }
+        }
+
+        if (고정_분류_컬럼.indexOf(키) >= 0) {
+          결과[키] = 목록;
+        } else {
+          결과.카테고리[키] = 목록;
+        }
+      }
+    }
+  }
+
+  결과.광고주그룹 = 광고주그룹_가져오기();
+
+  return 결과;
+}
+
+/** "광고주그룹" 시트에서 그룹명별 광고주 목록을 읽어온다.
+ *
+ * 각 컬럼의 헤더를 그룹명으로, 그 아래 셀들을 해당 그룹에 속한 광고주명 목록으로 취급한다.
+ */
+function 광고주그룹_가져오기() {
+  var 결과 = {};
+
+  var sheet = 시트_가져오기(시트이름_광고주그룹);
   if (!sheet) return 결과;
 
   var 값 = sheet.getDataRange().getValues();
-  if (값.length < 2) return 결과;
+  if (값.length < 1) return 결과;
 
   var 헤더 = 값[0];
 
   for (var col = 0; col < 헤더.length; col++) {
-    var 키 = String(헤더[col] || "").trim();
-    if (!키) continue;
+    var 그룹명 = String(헤더[col] || "").trim();
+    if (!그룹명) continue;
 
     var 목록 = [];
     for (var i = 1; i < 값.length; i++) {
@@ -95,11 +136,7 @@ function 설정값_가져오기() {
       }
     }
 
-    if (고정_분류_컬럼.indexOf(키) >= 0) {
-      결과[키] = 목록;
-    } else {
-      결과.카테고리[키] = 목록;
-    }
+    결과[그룹명] = 목록;
   }
 
   return 결과;
@@ -174,5 +211,46 @@ function 설정_저장(설정) {
     sheet.getRange(1, 1, 1, 헤더.length).setValues([헤더]);
   }
 
+  광고주그룹_저장(설정.광고주그룹 || {});
+
   return { success: true };
+}
+
+/** 설정 화면에서 입력한 그룹명별 광고주 목록으로 "광고주그룹" 시트를 다시 작성한다.
+ *
+ * 각 그룹명을 컬럼 헤더로, 그 그룹에 속한 광고주명들을 아래 행에 나열한다.
+ * 그룹이 하나도 없으면 시트 내용만 비운다.
+ */
+function 광고주그룹_저장(광고주그룹) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName(시트이름_광고주그룹);
+
+  if (!sheet) {
+    sheet = ss.insertSheet(시트이름_광고주그룹);
+  } else {
+    sheet.clear();
+  }
+
+  var 그룹명목록 = Object.keys(광고주그룹);
+  if (그룹명목록.length === 0) return;
+
+  var 목록들 = 그룹명목록.map(function (이름) {
+    return 광고주그룹[이름] || [];
+  });
+
+  var 최대길이 = 0;
+  목록들.forEach(function (목록) {
+    최대길이 = Math.max(최대길이, 목록.length);
+  });
+
+  var 데이터 = [그룹명목록];
+  for (var i = 0; i < 최대길이; i++) {
+    var 행 = [];
+    목록들.forEach(function (목록) {
+      행.push(i < 목록.length ? 목록[i] : "");
+    });
+    데이터.push(행);
+  }
+
+  sheet.getRange(1, 1, 데이터.length, 그룹명목록.length).setValues(데이터);
 }
