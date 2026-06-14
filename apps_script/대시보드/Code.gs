@@ -176,24 +176,3 @@ function 설정_저장(설정) {
 
   return { success: true };
 }
-
-/** 분석탭 차트 결과(헤더+행)를 "분석_{제목}" 시트에 덮어쓴다.
- *
- * 시트명에 쓸 수 없는 문자([]*?/\:)는 공백으로 바꾸고, 시트명 길이 제한(100자)에 맞춘다.
- */
-function 분석결과_내보내기(제목, 헤더, 행들) {
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var 시트명 = ("분석_" + 제목).replace(/[\[\]\*\?\/\\:]/g, " ").trim().slice(0, 100);
-
-  var sheet = ss.getSheetByName(시트명);
-  if (!sheet) {
-    sheet = ss.insertSheet(시트명);
-  } else {
-    sheet.clear();
-  }
-
-  var 데이터 = [헤더].concat(행들);
-  sheet.getRange(1, 1, 데이터.length, 헤더.length).setValues(데이터);
-
-  return { success: true, 시트명: 시트명 };
-}
