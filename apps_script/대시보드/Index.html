@@ -83,7 +83,6 @@
       border-radius: 10px;
       padding: 14px;
     }
-    .차트박스-넓게 { grid-column: 1 / -1; }
     .차트박스헤더 {
       display: flex;
       align-items: center;
@@ -644,20 +643,6 @@
           <button class="차트다운로드버튼" onclick="차트결과다운로드('차트4')">결과 다운로드</button>
         </div>
         <div id="차트4" class="차트"></div>
-      </div>
-      <div class="차트박스">
-        <div class="차트박스헤더">
-          <h3 id="차트5제목">장기 운영 소재 현황 (30일/60일/90일 이상)</h3>
-          <button class="차트다운로드버튼" onclick="차트결과다운로드('차트5')">결과 다운로드</button>
-        </div>
-        <div id="차트5" class="차트"></div>
-      </div>
-      <div class="차트박스 차트박스-넓게">
-        <div class="차트박스헤더">
-          <h3 id="차트6제목">월별 신규/종료 소재 추이</h3>
-          <button class="차트다운로드버튼" onclick="차트결과다운로드('차트6')">결과 다운로드</button>
-        </div>
-        <div id="차트6" class="차트"></div>
       </div>
     </div>
   </div>
@@ -1482,7 +1467,7 @@
       var 기준 = 분석그룹맵핑적용();
       분석필터데이터 = 분석데이터계산();
       var 기준라벨 = 기준 === "카테고리" ? "카테고리별" : "광고주별";
-      ["차트2제목", "차트3제목", "차트4제목", "차트5제목"].forEach(function (id) {
+      ["차트2제목", "차트3제목", "차트4제목"].forEach(function (id) {
         var el = document.getElementById(id);
         el.textContent = 기준라벨 + " " + el.textContent.replace(/^(광고주별|카테고리별) /, "");
       });
@@ -1490,8 +1475,6 @@
       차트_보종집중도();
       차트_후킹전략();
       차트_신규소재빈도();
-      차트_장기운영현황();
-      차트_월별추이();
     }
 
     // 1. 자사 vs 경쟁사 소재유형 비중 비교
@@ -1589,65 +1572,6 @@
         legend: { position: "none" },
         chartArea: { width: "80%", height: "70%" },
         hAxis: { slantedText: true, slantedTextAngle: 30 },
-      });
-    }
-
-    // 5. 장기 운영 소재 현황 (30일/60일/90일 이상, 광고주별/카테고리별)
-    function 차트_장기운영현황() {
-      var 기준 = document.getElementById("분석기준").value;
-      var 광고주목록 = 그룹순서계산(분석필터데이터, "__분석그룹", 분석그룹우선순위(기준));
-
-      var 헤더 = ["광고주", "30일 이상", "60일 이상", "90일 이상"];
-      var 행들 = 광고주목록.map(function (광고주) {
-        var 행데이터 = 분석필터데이터.filter(function (행) { return 행.__분석그룹 === 광고주; });
-        var c30 = 행데이터.filter(function (행) { return Number(행.운영일수 || 0) >= 30; }).length;
-        var c60 = 행데이터.filter(function (행) { return Number(행.운영일수 || 0) >= 60; }).length;
-        var c90 = 행데이터.filter(function (행) { return Number(행.운영일수 || 0) >= 90; }).length;
-        return [광고주, c30, c60, c90];
-      });
-
-      차트데이터.차트5 = { 헤더: 헤더, 행들: 행들 };
-
-      var data = google.visualization.arrayToDataTable([헤더].concat(행들));
-      var chart = new google.visualization.ColumnChart(document.getElementById("차트5"));
-      chart.draw(data, {
-        legend: { position: "top" },
-        chartArea: { width: "80%", height: "70%" },
-        hAxis: { slantedText: true, slantedTextAngle: 30 },
-      });
-    }
-
-    // 6. 월별 신규/종료 소재 추이
-    function 차트_월별추이() {
-      var 월별 = {};
-
-      분석필터데이터.forEach(function (행) {
-        if (행.최초발견일) {
-          var 신규월 = 행.최초발견일.slice(0, 7);
-          월별[신규월] = 월별[신규월] || { 신규: 0, 종료: 0 };
-          월별[신규월].신규 += 1;
-        }
-        if (행.광고종료일) {
-          var 종료월 = 행.광고종료일.slice(0, 7);
-          월별[종료월] = 월별[종료월] || { 신규: 0, 종료: 0 };
-          월별[종료월].종료 += 1;
-        }
-      });
-
-      var 월목록 = Object.keys(월별).sort();
-      var 헤더 = ["월", "신규", "종료"];
-      var 행들 = 월목록.map(function (월) {
-        return [월, 월별[월].신규, 월별[월].종료];
-      });
-
-      차트데이터.차트6 = { 헤더: 헤더, 행들: 행들 };
-
-      var data = google.visualization.arrayToDataTable([헤더].concat(행들.length ? 행들 : [["-", 0, 0]]));
-      var chart = new google.visualization.LineChart(document.getElementById("차트6"));
-      chart.draw(data, {
-        legend: { position: "top" },
-        chartArea: { width: "85%", height: "70%" },
-        curveType: "function",
       });
     }
 
