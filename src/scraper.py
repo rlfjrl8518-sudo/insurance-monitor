@@ -13,6 +13,8 @@ from urllib.parse import urlencode
 
 from playwright.sync_api import sync_playwright
 
+from src.text_utils import 외국어_소재인가
+
 광고라이브러리_기본URL = "https://www.facebook.com/ads/library/"
 
 # 광고 카드 컨테이너를 찾고, 카드별 정보를 추출하는 JS 스크립트.
@@ -198,6 +200,8 @@ def 광고주_광고_수집(page, 광고주명, 설정, 진행_콜백=print):
         if not library_id:
             continue
         if library_id in 수집된_library_id:
+            continue
+        if 외국어_소재인가(광고텍스트):
             continue
         수집된_library_id.add(library_id)
 

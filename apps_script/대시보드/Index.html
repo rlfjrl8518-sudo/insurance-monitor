@@ -587,6 +587,16 @@
         <option value="광고주">광고주별</option>
         <option value="카테고리">카테고리별</option>
       </select>
+
+      <label for="분석카테고리필터">카테고리</label>
+      <select id="분석카테고리필터" onchange="분석카테고리변경()">
+        <option value="전체">전체</option>
+      </select>
+
+      <label for="분석광고주필터">광고주</label>
+      <select id="분석광고주필터" onchange="분석렌더링()">
+        <option value="전체">전체</option>
+      </select>
     </div>
     <div class="차트그리드">
       <div class="차트박스">
@@ -716,6 +726,7 @@
     var 다중선택기본텍스트 = { 카테고리: "카테고리", 광고주: "광고주", 소재유형: "소재유형", 보종: "보종", 후킹: "후킹" };
     var 현재탭 = "갤러리탭";
     var 차트로드완료 = false;
+    var 분석필터데이터 = [];
 
     // 설정값.카테고리에 등록된 모든 광고주를 카테고리 등장 순서대로 합친 목록을 반환한다.
     function 전체광고주목록() {
@@ -772,27 +783,45 @@
       google.script.run.withSuccessHandler(function (설정) {
         설정값 = 설정;
         필터옵션채우기();
+        분석옵션채우기();
       }).설정값_가져오기();
 
       google.script.run.withSuccessHandler(function (데이터) {
         전체데이터 = 데이터;
         document.getElementById("로딩").style.display = "none";
+        필터옵션채우기();
+        분석옵션채우기();
         필터적용();
         if (현재탭 === "분석탭") 분석렌더링();
       }).광고데이터_가져오기();
     }
 
+    // 전체데이터에 실제로 등장하는 값의 집합을 필드명별로 계산한다.
+    function 존재값집합() {
+      var 카테고리맵 = 광고주카테고리맵();
+      var 결과 = { 카테고리: {}, 광고주: {}, 소재유형: {}, 보종: {}, 후킹: {} };
+      전체데이터.forEach(function (행) {
+        if (행.광고주) 결과.광고주[행.광고주] = true;
+        if (카테고리맵[행.광고주]) 결과.카테고리[카테고리맵[행.광고주]] = true;
+        if (행.소재유형) 결과.소재유형[행.소재유형] = true;
+        if (행.보종) 결과.보종[행.보종] = true;
+        if (행.후킹) 결과.후킹[행.후킹] = true;
+      });
+      return 결과;
+    }
+
     function 필터옵션채우기() {
+      var 존재 = 존재값집합();
       var 옵션맵 = {
-        카테고리: Object.keys(설정값.카테고리 || {}),
-        광고주: 광고주옵션목록(),
-        소재유형: 설정값.소재유형,
-        보종: 설정값.보종,
-        후킹: 설정값.후킹,
+        카테고리: Object.keys(설정값.카테고리 || {}).filter(function (v) { return 존재.카테고리[v]; }),
+        광고주: 광고주옵션목록().filter(function (v) { return 존재.광고주[v]; }),
+        소재유형: (설정값.소재유형 || []).filter(function (v) { return 존재.소재유형[v]; }),
+        보종: (설정값.보종 || []).filter(function (v) { return 존재.보종[v]; }),
+        후킹: (설정값.후킹 || []).filter(function (v) { return 존재.후킹[v]; }),
       };
 
       Object.keys(옵션맵).forEach(function (키) {
-        // 설정 목록에서 사라진 값은 선택 상태에서도 제거
+        // 설정 목록에서 사라졌거나 더 이상 데이터에 존재하지 않는 값은 선택 상태에서도 제거
         다중선택상태[키] = 다중선택상태[키].filter(function (값) {
           return (옵션맵[키] || []).indexOf(값) !== -1;
         });
@@ -804,6 +833,25 @@
     function 다중선택패널채우기(키, 목록) {
       var 패널 = document.getElementById(키 + "필터패널");
       패널.innerHTML = "";
+
+      // "전체" 옵션: 선택된 항목이 없을 때를 의미하며, 체크 시 다른 선택을 모두 해제한다.
+      var 전체label = document.createElement("label");
+      var 전체체크 = document.createElement("input");
+      전체체크.type = "checkbox";
+      전체체크.checked = 다중선택상태[키].length === 0;
+      전체체크.onchange = function () {
+        if (전체체크.checked) {
+          다중선택상태[키] = [];
+          다중선택패널채우기(키, 목록);
+          다중선택버튼갱신(키);
+          필터적용();
+        } else {
+          전체체크.checked = true;
+        }
+      };
+      전체label.appendChild(전체체크);
+      전체label.appendChild(document.createTextNode("전체"));
+      패널.appendChild(전체label);
 
       (목록 || []).forEach(function (값) {
         var label = document.createElement("label");
@@ -818,6 +866,7 @@
           } else if (idx !== -1) {
             다중선택상태[키].splice(idx, 1);
           }
+          다중선택패널채우기(키, 목록);
           다중선택버튼갱신(키);
           필터적용();
         };
@@ -1214,6 +1263,7 @@
           if (결과 && 결과.success) {
             설정값 = 새설정;
             필터옵션채우기();
+            분석옵션채우기();
             상태.style.color = "#1e8e3e";
             상태.textContent = "저장되었습니다.";
             필터적용();
@@ -1313,9 +1363,73 @@
       return 정렬순서계산();
     }
 
+    // 분석탭 "카테고리"/"광고주" 필터 선택지를 데이터에 실제 존재하는 값으로 채운다.
+    function 분석옵션채우기() {
+      var 존재 = 존재값집합();
+      var 카테고리목록 = Object.keys(설정값.카테고리 || {}).filter(function (v) { return 존재.카테고리[v]; });
+
+      var 카테고리셀렉트 = document.getElementById("분석카테고리필터");
+      var 현재카테고리 = 카테고리셀렉트.value || "전체";
+      카테고리셀렉트.innerHTML = '<option value="전체">전체</option>';
+      카테고리목록.forEach(function (이름) {
+        var 옵션 = document.createElement("option");
+        옵션.value = 이름;
+        옵션.textContent = 이름;
+        카테고리셀렉트.appendChild(옵션);
+      });
+      카테고리셀렉트.value = 카테고리목록.indexOf(현재카테고리) !== -1 ? 현재카테고리 : "전체";
+
+      분석광고주옵션채우기();
+    }
+
+    // 분석탭 카테고리 선택이 바뀌면, 광고주 선택지를 해당 카테고리 소속으로 다시 채운다.
+    function 분석카테고리변경() {
+      document.getElementById("분석광고주필터").value = "전체";
+      분석광고주옵션채우기();
+      분석렌더링();
+    }
+
+    function 분석광고주옵션채우기() {
+      var 선택카테고리 = document.getElementById("분석카테고리필터").value;
+      var 카테고리맵 = 광고주카테고리맵();
+      var 존재 = 존재값집합();
+
+      var 광고주목록 = 광고주옵션목록().filter(function (광고주) {
+        if (!존재.광고주[광고주]) return false;
+        if (선택카테고리 === "전체") return true;
+        return 카테고리맵[광고주] === 선택카테고리;
+      });
+
+      var 광고주셀렉트 = document.getElementById("분석광고주필터");
+      var 현재광고주 = 광고주셀렉트.value || "전체";
+      광고주셀렉트.innerHTML = '<option value="전체">전체</option>';
+      광고주목록.forEach(function (이름) {
+        var 옵션 = document.createElement("option");
+        옵션.value = 이름;
+        옵션.textContent = 이름;
+        광고주셀렉트.appendChild(옵션);
+      });
+      광고주셀렉트.value = 광고주목록.indexOf(현재광고주) !== -1 ? 현재광고주 : "전체";
+    }
+
+    // 분석탭 카테고리/광고주 필터를 적용한 데이터를 반환한다. 자사 데이터는 비교 기준이므로 항상 포함한다.
+    function 분석데이터계산() {
+      var 카테고리 = document.getElementById("분석카테고리필터").value;
+      var 광고주 = document.getElementById("분석광고주필터").value;
+      var 카테고리맵 = 광고주카테고리맵();
+
+      return 전체데이터.filter(function (행) {
+        if (행.구분 === "자사") return true;
+        if (카테고리 !== "전체" && 카테고리맵[행.광고주] !== 카테고리) return false;
+        if (광고주 !== "전체" && 행.광고주 !== 광고주) return false;
+        return true;
+      });
+    }
+
     function 분석렌더링() {
       if (!차트로드완료 || !전체데이터.length) return;
       var 기준 = 분석그룹맵핑적용();
+      분석필터데이터 = 분석데이터계산();
       var 기준라벨 = 기준 === "카테고리" ? "카테고리별" : "광고주별";
       ["차트2제목", "차트3제목", "차트4제목", "차트5제목"].forEach(function (id) {
         var el = document.getElementById(id);
@@ -1332,8 +1446,8 @@
     // 1. 자사 vs 경쟁사 소재유형 비중 비교
     function 차트_소재유형비교() {
       var 소재유형목록 = (설정값.소재유형 || []).concat(["미분류"]);
-      var 집계 = 분류집계(전체데이터, "구분", "소재유형");
-      var 구분목록 = 그룹순서계산(전체데이터, "구분", ["자사", "경쟁사"]);
+      var 집계 = 분류집계(분석필터데이터, "구분", "소재유형");
+      var 구분목록 = 그룹순서계산(분석필터데이터, "구분", ["자사", "경쟁사"]);
 
       var 헤더 = ["구분"].concat(소재유형목록);
       var 행들 = 구분목록.map(function (구분) {
@@ -1355,8 +1469,8 @@
     function 차트_보종집중도() {
       var 기준 = document.getElementById("분석기준").value;
       var 보종목록 = (설정값.보종 || []).concat(["미분류"]);
-      var 집계 = 분류집계(전체데이터, "__분석그룹", "보종");
-      var 광고주목록 = 그룹순서계산(전체데이터, "__분석그룹", 분석그룹우선순위(기준));
+      var 집계 = 분류집계(분석필터데이터, "__분석그룹", "보종");
+      var 광고주목록 = 그룹순서계산(분석필터데이터, "__분석그룹", 분석그룹우선순위(기준));
 
       var 헤더 = ["광고주"].concat(보종목록);
       var 행들 = 광고주목록.map(function (광고주) {
@@ -1379,8 +1493,8 @@
     function 차트_후킹전략() {
       var 기준 = document.getElementById("분석기준").value;
       var 후킹목록 = (설정값.후킹 || []).concat(["미분류"]);
-      var 집계 = 분류집계(전체데이터, "__분석그룹", "후킹");
-      var 광고주목록 = 그룹순서계산(전체데이터, "__분석그룹", 분석그룹우선순위(기준));
+      var 집계 = 분류집계(분석필터데이터, "__분석그룹", "후킹");
+      var 광고주목록 = 그룹순서계산(분석필터데이터, "__분석그룹", 분석그룹우선순위(기준));
 
       var 헤더 = ["광고주"].concat(후킹목록);
       var 행들 = 광고주목록.map(function (광고주) {
@@ -1402,11 +1516,11 @@
     // 4. 신규 소재 출시 빈도 (누적 소재 수, 광고주별/카테고리별)
     function 차트_신규소재빈도() {
       var 기준 = document.getElementById("분석기준").value;
-      var 광고주목록 = 그룹순서계산(전체데이터, "__분석그룹", 분석그룹우선순위(기준));
+      var 광고주목록 = 그룹순서계산(분석필터데이터, "__분석그룹", 분석그룹우선순위(기준));
 
       var 헤더 = ["광고주", "소재 수"];
       var 행들 = 광고주목록.map(function (광고주) {
-        var 건수 = 전체데이터.filter(function (행) { return 행.__분석그룹 === 광고주; }).length;
+        var 건수 = 분석필터데이터.filter(function (행) { return 행.__분석그룹 === 광고주; }).length;
         return [광고주, 건수];
       });
 
@@ -1422,11 +1536,11 @@
     // 5. 장기 운영 소재 현황 (30일/60일/90일 이상, 광고주별/카테고리별)
     function 차트_장기운영현황() {
       var 기준 = document.getElementById("분석기준").value;
-      var 광고주목록 = 그룹순서계산(전체데이터, "__분석그룹", 분석그룹우선순위(기준));
+      var 광고주목록 = 그룹순서계산(분석필터데이터, "__분석그룹", 분석그룹우선순위(기준));
 
       var 헤더 = ["광고주", "30일 이상", "60일 이상", "90일 이상"];
       var 행들 = 광고주목록.map(function (광고주) {
-        var 행데이터 = 전체데이터.filter(function (행) { return 행.__분석그룹 === 광고주; });
+        var 행데이터 = 분석필터데이터.filter(function (행) { return 행.__분석그룹 === 광고주; });
         var c30 = 행데이터.filter(function (행) { return Number(행.운영일수 || 0) >= 30; }).length;
         var c60 = 행데이터.filter(function (행) { return Number(행.운영일수 || 0) >= 60; }).length;
         var c90 = 행데이터.filter(function (행) { return Number(행.운영일수 || 0) >= 90; }).length;
@@ -1446,7 +1560,7 @@
     function 차트_월별추이() {
       var 월별 = {};
 
-      전체데이터.forEach(function (행) {
+      분석필터데이터.forEach(function (행) {
         if (행.최초발견일) {
           var 신규월 = 행.최초발견일.slice(0, 7);
           월별[신규월] = 월별[신규월] || { 신규: 0, 종료: 0 };
