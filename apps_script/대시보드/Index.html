@@ -84,10 +84,28 @@
       padding: 14px;
     }
     .차트박스-넓게 { grid-column: 1 / -1; }
-    .차트박스 h3 {
-      margin: 0 0 8px;
+    .차트박스헤더 {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+    .차트박스헤더 h3 {
+      margin: 0;
       font-size: 14px;
     }
+    .차트내보내기버튼 {
+      flex-shrink: 0;
+      padding: 4px 10px;
+      font-size: 12px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--card-bg);
+      color: var(--text-light);
+      cursor: pointer;
+    }
+    .차트내보내기버튼:hover { background: var(--border); }
     .차트 {
       width: 100%;
       height: 320px;
@@ -600,27 +618,45 @@
     </div>
     <div class="차트그리드">
       <div class="차트박스">
-        <h3>자사 vs 경쟁사 소재유형 비중 비교</h3>
+        <div class="차트박스헤더">
+          <h3 id="차트1제목">자사 vs 경쟁사 소재유형 비중 비교</h3>
+          <button class="차트내보내기버튼" onclick="차트내보내기('차트1')">시트로 내보내기</button>
+        </div>
         <div id="차트1" class="차트"></div>
       </div>
       <div class="차트박스">
-        <h3 id="차트2제목">보종 집중도 비교</h3>
+        <div class="차트박스헤더">
+          <h3 id="차트2제목">보종 집중도 비교</h3>
+          <button class="차트내보내기버튼" onclick="차트내보내기('차트2')">시트로 내보내기</button>
+        </div>
         <div id="차트2" class="차트"></div>
       </div>
       <div class="차트박스">
-        <h3 id="차트3제목">후킹 전략 비교</h3>
+        <div class="차트박스헤더">
+          <h3 id="차트3제목">후킹 전략 비교</h3>
+          <button class="차트내보내기버튼" onclick="차트내보내기('차트3')">시트로 내보내기</button>
+        </div>
         <div id="차트3" class="차트"></div>
       </div>
       <div class="차트박스">
-        <h3 id="차트4제목">신규 소재 출시 빈도</h3>
+        <div class="차트박스헤더">
+          <h3 id="차트4제목">신규 소재 출시 빈도</h3>
+          <button class="차트내보내기버튼" onclick="차트내보내기('차트4')">시트로 내보내기</button>
+        </div>
         <div id="차트4" class="차트"></div>
       </div>
       <div class="차트박스">
-        <h3 id="차트5제목">장기 운영 소재 현황 (30일/60일/90일 이상)</h3>
+        <div class="차트박스헤더">
+          <h3 id="차트5제목">장기 운영 소재 현황 (30일/60일/90일 이상)</h3>
+          <button class="차트내보내기버튼" onclick="차트내보내기('차트5')">시트로 내보내기</button>
+        </div>
         <div id="차트5" class="차트"></div>
       </div>
       <div class="차트박스 차트박스-넓게">
-        <h3>월별 신규/종료 소재 추이</h3>
+        <div class="차트박스헤더">
+          <h3 id="차트6제목">월별 신규/종료 소재 추이</h3>
+          <button class="차트내보내기버튼" onclick="차트내보내기('차트6')">시트로 내보내기</button>
+        </div>
         <div id="차트6" class="차트"></div>
       </div>
     </div>
@@ -727,6 +763,7 @@
     var 현재탭 = "갤러리탭";
     var 차트로드완료 = false;
     var 분석필터데이터 = [];
+    var 차트데이터 = {};
 
     // 설정값.카테고리에 등록된 모든 광고주를 카테고리 등장 순서대로 합친 목록을 반환한다.
     function 전체광고주목록() {
@@ -1456,6 +1493,8 @@
         }));
       });
 
+      차트데이터.차트1 = { 헤더: 헤더, 행들: 행들 };
+
       var data = google.visualization.arrayToDataTable([헤더].concat(행들));
       var chart = new google.visualization.ColumnChart(document.getElementById("차트1"));
       chart.draw(data, {
@@ -1478,6 +1517,8 @@
           return (집계[광고주] && 집계[광고주][분류]) || 0;
         }));
       });
+
+      차트데이터.차트2 = { 헤더: 헤더, 행들: 행들 };
 
       var data = google.visualization.arrayToDataTable([헤더].concat(행들));
       var chart = new google.visualization.ColumnChart(document.getElementById("차트2"));
@@ -1503,6 +1544,8 @@
         }));
       });
 
+      차트데이터.차트3 = { 헤더: 헤더, 행들: 행들 };
+
       var data = google.visualization.arrayToDataTable([헤더].concat(행들));
       var chart = new google.visualization.ColumnChart(document.getElementById("차트3"));
       chart.draw(data, {
@@ -1523,6 +1566,8 @@
         var 건수 = 분석필터데이터.filter(function (행) { return 행.__분석그룹 === 광고주; }).length;
         return [광고주, 건수];
       });
+
+      차트데이터.차트4 = { 헤더: 헤더, 행들: 행들 };
 
       var data = google.visualization.arrayToDataTable([헤더].concat(행들));
       var chart = new google.visualization.ColumnChart(document.getElementById("차트4"));
@@ -1546,6 +1591,8 @@
         var c90 = 행데이터.filter(function (행) { return Number(행.운영일수 || 0) >= 90; }).length;
         return [광고주, c30, c60, c90];
       });
+
+      차트데이터.차트5 = { 헤더: 헤더, 행들: 행들 };
 
       var data = google.visualization.arrayToDataTable([헤더].concat(행들));
       var chart = new google.visualization.ColumnChart(document.getElementById("차트5"));
@@ -1579,6 +1626,8 @@
         return [월, 월별[월].신규, 월별[월].종료];
       });
 
+      차트데이터.차트6 = { 헤더: 헤더, 행들: 행들 };
+
       var data = google.visualization.arrayToDataTable([헤더].concat(행들.length ? 행들 : [["-", 0, 0]]));
       var chart = new google.visualization.LineChart(document.getElementById("차트6"));
       chart.draw(data, {
@@ -1586,6 +1635,35 @@
         chartArea: { width: "85%", height: "70%" },
         curveType: "function",
       });
+    }
+
+    // 분석탭 차트의 현재 데이터를 구글 시트의 새 탭으로 내보낸다.
+    function 차트내보내기(차트id) {
+      var 데이터 = 차트데이터[차트id];
+      var 버튼 = document.querySelector('button[onclick="차트내보내기(\'' + 차트id + '\')"]');
+      if (!데이터 || !데이터.헤더) return;
+
+      var 제목 = document.getElementById(차트id + "제목").textContent;
+      var 원래텍스트 = 버튼.textContent;
+      버튼.disabled = true;
+      버튼.textContent = "내보내는 중...";
+
+      google.script.run
+        .withSuccessHandler(function (결과) {
+          버튼.disabled = false;
+          if (결과 && 결과.success) {
+            버튼.textContent = "내보내기 완료 (" + 결과.시트명 + ")";
+          } else {
+            버튼.textContent = "내보내기 실패";
+          }
+          setTimeout(function () { 버튼.textContent = 원래텍스트; }, 2500);
+        })
+        .withFailureHandler(function (오류) {
+          버튼.disabled = false;
+          버튼.textContent = "내보내기 실패";
+          setTimeout(function () { 버튼.textContent = 원래텍스트; }, 2500);
+        })
+        .분석결과_내보내기(제목, 데이터.헤더, 데이터.행들);
     }
 
     초기화();
