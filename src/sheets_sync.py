@@ -17,6 +17,7 @@ import urllib.request
 import gspread
 from google.oauth2.service_account import Credentials
 
+from src.config_loader import 광고주_목록_생성
 from src.csv_store import CSV_읽기
 
 # 구글 시트 API 접근 권한 범위
@@ -49,8 +50,8 @@ from src.csv_store import CSV_읽기
 # 대시보드 설정 화면(광고주/분류 카테고리)을 저장하는 워크시트 이름
 설정_시트이름 = "설정"
 
-# 설정 시트의 컬럼과 config.json 항목 매핑
-설정_시트_컬럼 = ["광고주", "소재유형", "보종", "후킹"]
+# 설정 시트에서 고정된 의미를 갖는 컬럼 (나머지 컬럼은 모두 광고주 카테고리로 취급)
+고정_분류_컬럼 = ["소재유형", "보종", "후킹"]
 
 
 def 구글_인증(서비스계정_경로):
@@ -82,7 +83,10 @@ def 워크시트_가져오기(gc, 설정):
 
 
 def 설정_시트_초기화(gc, 설정):
-    """'설정' 워크시트가 없으면 config.json의 광고주/분류 카테고리로 새로 만든다.
+    """'설정' 워크시트가 없으면 config.json의 카테고리별 광고주/분류 카테고리로 새로 만든다.
+
+    카테고리 컬럼(예: 손해보험/생명보험/GA)은 advertiser_categories의 키를 그대로 사용하므로,
+    시트에 새 컬럼을 추가하거나 컬럼을 지우는 방식으로 카테고리를 동적으로 추가/삭제할 수 있다.
 
     이미 존재하면 대시보드에서 관리하는 값을 건드리지 않고 그대로 둔다.
     """
@@ -94,30 +98,34 @@ def 설정_시트_초기화(gc, 설정):
     except gspread.WorksheetNotFound:
         pass
 
-    목록들 = [
-        설정["advertisers"],
+    카테고리_이름들 = list(설정["advertiser_categories"].keys())
+    헤더 = 카테고리_이름들 + 고정_분류_컬럼
+    목록들 = [설정["advertiser_categories"][이름] for 이름 in 카테고리_이름들] + [
         설정["classification"]["소재유형"],
         설정["classification"]["보종"],
         설정["classification"]["후킹"],
     ]
     최대길이 = max(len(목록) for 목록 in 목록들)
 
-    데이터 = [설정_시트_컬럼]
+    데이터 = [헤더]
     for i in range(최대길이):
         데이터.append([목록[i] if i < len(목록) else "" for 목록 in 목록들])
 
     워크시트 = 스프레드시트.add_worksheet(
-        title=설정_시트이름, rows=max(최대길이 + 1, 10), cols=len(설정_시트_컬럼)
+        title=설정_시트이름, rows=max(최대길이 + 1, 10), cols=len(헤더)
     )
     워크시트.update(데이터, "A1")
 
 
 def 설정_시트_읽기(gc, 설정):
-    """'설정' 워크시트에서 광고주/소재유형/보종/후킹 목록을 읽어온다.
+    """'설정' 워크시트에서 카테고리별 광고주/소재유형/보종/후킹 목록을 읽어온다.
 
-    시트가 없거나 비어 있으면 각 항목이 빈 리스트인 딕셔너리를 반환한다.
+    '소재유형'/'보종'/'후킹'을 제외한 모든 컬럼은 광고주 카테고리로 취급하며,
+    결과의 "카테고리" 항목에 {카테고리명: [광고주, ...]} 형태로 담긴다.
+
+    시트가 없거나 비어 있으면 모든 항목이 빈 값인 딕셔너리를 반환한다.
     """
-    결과 = {컬럼: [] for 컬럼 in 설정_시트_컬럼}
+    결과 = {"카테고리": {}, "소재유형": [], "보종": [], "후킹": []}
 
     스프레드시트 = gc.open_by_key(설정["google_sheets"]["spreadsheet_id"])
     try:
@@ -131,24 +139,29 @@ def 설정_시트_읽기(gc, 설정):
 
     헤더 = 값[0]
     for 열번호, 컬럼명 in enumerate(헤더):
-        if 컬럼명 not in 결과:
+        if not 컬럼명:
             continue
-        for 행 in 값[1:]:
-            if 열번호 < len(행) and 행[열번호]:
-                결과[컬럼명].append(행[열번호])
+        목록 = [행[열번호] for 행 in 값[1:] if 열번호 < len(행) and 행[열번호]]
+        if 컬럼명 in 고정_분류_컬럼:
+            결과[컬럼명] = 목록
+        else:
+            결과["카테고리"][컬럼명] = 목록
 
     return 결과
 
 
 def 설정_동적_적용(설정, 서비스계정_경로):
-    """'설정' 시트에 입력된 광고주/소재유형/후킹 목록이 있으면 설정값을 덮어쓴다.
+    """'설정' 시트에 입력된 광고주 카테고리/소재유형/후킹 목록이 있으면 설정값을 덮어쓴다.
 
     대시보드 "설정" 화면에서 이 값들을 바꾸면 다음 수집/분류부터 바로 반영되도록 한다.
     보종은 분류 규칙(src/classifier.py)이 카테고리별 키워드/우선순위를 코드로
     정의하고 있어 시트 값으로 덮어쓰지 않는다 (검증용 목록은 config.json 값 유지).
 
+    수집 대상 광고주 목록(advertisers)은 own_company + advertiser_categories를 합쳐 계산한다.
     시트 접근에 실패하면 config.json 값을 그대로 사용한다.
     """
+    설정["advertisers"] = 광고주_목록_생성(설정)
+
     if "여기에_" in 설정["google_sheets"]["spreadsheet_id"]:
         return 설정
     if not os.path.exists(서비스계정_경로):
@@ -162,8 +175,9 @@ def 설정_동적_적용(설정, 서비스계정_경로):
         print(f"'설정' 시트를 읽지 못해 config.json 기본값을 사용합니다: {e}")
         return 설정
 
-    if 시트설정["광고주"]:
-        설정["advertisers"] = 시트설정["광고주"]
+    if 시트설정["카테고리"]:
+        설정["advertiser_categories"] = 시트설정["카테고리"]
+        설정["advertisers"] = 광고주_목록_생성(설정)
     if 시트설정["소재유형"]:
         설정["classification"]["소재유형"] = 시트설정["소재유형"]
     if 시트설정["후킹"]:

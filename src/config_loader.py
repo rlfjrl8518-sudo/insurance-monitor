@@ -79,3 +79,11 @@ def 경로_절대화(상대경로, 설정_경로=기본_설정_경로):
     """config.json의 상대 경로(data/ads.csv 등)를 프로젝트 루트 기준 절대 경로로 변환한다."""
     프로젝트_루트 = os.path.dirname(os.path.abspath(설정_경로))
     return os.path.join(프로젝트_루트, 상대경로)
+
+
+def 광고주_목록_생성(설정):
+    """자사(own_company)와 카테고리별 경쟁사 광고주를 합쳐 전체 수집 대상 목록을 반환한다."""
+    목록 = [설정["own_company"]]
+    for 카테고리_광고주_목록 in 설정["advertiser_categories"].values():
+        목록.extend(카테고리_광고주_목록)
+    return 목록

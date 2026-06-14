@@ -18,6 +18,9 @@
 var 시트이름_데이터 = "광고모니터링";
 var 시트이름_설정 = "설정";
 
+// "설정" 시트에서 고정된 의미를 갖는 컬럼 (나머지 컬럼은 모두 광고주 카테고리로 취급)
+var 고정_분류_컬럼 = ["소재유형", "보종", "후킹"];
+
 function doGet() {
   return HtmlService.createTemplateFromFile("Index")
     .evaluate()
@@ -64,9 +67,13 @@ function 광고데이터_가져오기() {
   return 결과;
 }
 
-/** "설정" 시트에서 광고주/소재유형/보종/후킹 목록을 읽어온다. */
+/** "설정" 시트에서 카테고리별 광고주/소재유형/보종/후킹 목록을 읽어온다.
+ *
+ * "소재유형"/"보종"/"후킹"을 제외한 모든 컬럼은 광고주 카테고리로 취급하며,
+ * 결과의 카테고리 항목에 { 카테고리명: [광고주, ...] } 형태로 담긴다.
+ */
 function 설정값_가져오기() {
-  var 결과 = { 광고주: [], 소재유형: [], 보종: [], 후킹: [] };
+  var 결과 = { 카테고리: {}, 소재유형: [], 보종: [], 후킹: [] };
 
   var sheet = 시트_가져오기(시트이름_설정);
   if (!sheet) return 결과;
@@ -77,14 +84,21 @@ function 설정값_가져오기() {
   var 헤더 = 값[0];
 
   for (var col = 0; col < 헤더.length; col++) {
-    var 키 = 헤더[col];
-    if (!(키 in 결과)) continue;
+    var 키 = String(헤더[col] || "").trim();
+    if (!키) continue;
 
+    var 목록 = [];
     for (var i = 1; i < 값.length; i++) {
       var v = 값[i][col];
       if (v !== "" && v !== null && v !== undefined) {
-        결과[키].push(String(v));
+        목록.push(String(v));
       }
+    }
+
+    if (고정_분류_컬럼.indexOf(키) >= 0) {
+      결과[키] = 목록;
+    } else {
+      결과.카테고리[키] = 목록;
     }
   }
 
@@ -116,7 +130,11 @@ function 광고_수정(ad_id, 소재유형, 보종, 후킹) {
   return { success: false, error: "ad_id를 찾을 수 없습니다: " + ad_id };
 }
 
-/** 설정 화면에서 입력한 광고주/소재유형/보종/후킹 목록으로 "설정" 시트를 다시 작성한다. */
+/** 설정 화면에서 입력한 카테고리별 광고주/소재유형/보종/후킹 목록으로 "설정" 시트를 다시 작성한다.
+ *
+ * 카테고리는 설정.카테고리의 키를 그대로 컬럼으로 사용하므로, 카테고리를 추가/삭제하면
+ * 시트의 컬럼도 그에 맞춰 동적으로 늘어나거나 줄어든다.
+ */
 function 설정_저장(설정) {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var sheet = ss.getSheetByName(시트이름_설정);
@@ -127,17 +145,24 @@ function 설정_저장(설정) {
     sheet.clear();
   }
 
-  var 헤더 = ["광고주", "소재유형", "보종", "후킹"];
+  var 카테고리목록 = Object.keys(설정.카테고리 || {});
+  var 헤더 = 카테고리목록.concat(고정_분류_컬럼);
+
+  var 목록들 = 카테고리목록.map(function (이름) {
+    return 설정.카테고리[이름] || [];
+  }).concat(고정_분류_컬럼.map(function (키) {
+    return 설정[키] || [];
+  }));
+
   var 최대길이 = 0;
-  헤더.forEach(function (키) {
-    최대길이 = Math.max(최대길이, (설정[키] || []).length);
+  목록들.forEach(function (목록) {
+    최대길이 = Math.max(최대길이, 목록.length);
   });
 
   var 데이터 = [헤더];
   for (var i = 0; i < 최대길이; i++) {
     var 행 = [];
-    헤더.forEach(function (키) {
-      var 목록 = 설정[키] || [];
+    목록들.forEach(function (목록) {
       행.push(i < 목록.length ? 목록[i] : "");
     });
     데이터.push(행);

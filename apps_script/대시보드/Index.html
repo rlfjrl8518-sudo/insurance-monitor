@@ -95,6 +95,20 @@
     @media (max-width: 900px) {
       .차트그리드 { grid-template-columns: 1fr; }
     }
+    #분석옵션 {
+      padding: 12px 20px 0;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      color: var(--text-light);
+    }
+    #분석옵션 select {
+      padding: 6px 8px;
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      font-size: 12px;
+    }
 
     #필터바 {
       background: #fff;
@@ -226,6 +240,16 @@
       object-fit: cover;
       display: block;
     }
+    .카드 .이미지영역.플레이스홀더 {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      color: var(--text-light);
+    }
+    .카드 .이미지영역.플레이스홀더 .아이콘 { font-size: 28px; }
+    .카드 .이미지영역.플레이스홀더 .텍스트 { font-size: 11px; }
     .카드 .정보 { padding: 10px; }
     .카드 .정보 .태그줄 {
       display: flex;
@@ -308,6 +332,21 @@
     #상세팝업 .모달내용 { display: flex; gap: 20px; flex-wrap: wrap; }
     #상세이미지래퍼 { flex: 1 1 260px; }
     #상세이미지 { width: 100%; border-radius: 8px; border: 1px solid var(--border); }
+    .이미지플레이스홀더 {
+      width: 100%;
+      aspect-ratio: 1 / 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      color: var(--text-light);
+      background: #f0f0f0;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+    }
+    .이미지플레이스홀더 .아이콘 { font-size: 36px; }
+    .이미지플레이스홀더 .텍스트 { font-size: 12px; }
     #상세정보 { flex: 1 1 320px; min-width: 280px; }
     #상세정보 h2 { margin: 0 0 6px; font-size: 17px; }
     #상세정보 .상태운영 { font-size: 12px; color: var(--text-light); margin-bottom: 12px; }
@@ -361,6 +400,7 @@
 
     /* 설정 팝업 */
     #설정팝업 h2 { margin-top: 0; font-size: 17px; }
+    #설정팝업 h3 { font-size: 14px; margin: 18px 0 8px; }
     #설정팝업 .설정그리드 {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
@@ -372,6 +412,64 @@
       font-size: 12px;
       color: var(--text-light);
       margin-bottom: 14px;
+    }
+    #카테고리설정목록 {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 14px;
+      margin-bottom: 10px;
+    }
+    .카테고리블록 { display: flex; flex-direction: column; }
+    .카테고리블록헤더 {
+      display: flex;
+      gap: 6px;
+      margin-bottom: 4px;
+    }
+    .카테고리이름입력 {
+      flex: 1;
+      font-weight: bold;
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      padding: 4px 6px;
+      font-size: 13px;
+    }
+    .카테고리삭제버튼 {
+      border: 1px solid var(--border);
+      background: #fff;
+      border-radius: 5px;
+      padding: 4px 8px;
+      font-size: 12px;
+      cursor: pointer;
+      color: #d93025;
+    }
+    .카테고리블록 textarea {
+      min-height: 100px;
+      padding: 6px 8px;
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      font-size: 13px;
+      font-family: inherit;
+      resize: vertical;
+    }
+    .카테고리추가행 {
+      display: flex;
+      gap: 6px;
+      margin-bottom: 16px;
+    }
+    .카테고리추가행 input {
+      flex: 1;
+      padding: 6px 8px;
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      font-size: 13px;
+    }
+    .카테고리추가행 button {
+      border: 1px solid var(--border);
+      background: #fff;
+      border-radius: 5px;
+      padding: 6px 12px;
+      font-size: 12px;
+      cursor: pointer;
     }
     #설정저장버튼 {
       background: var(--accent);
@@ -417,6 +515,10 @@
 
     <span class="구분"></span>
 
+    <div class="다중선택" id="카테고리필터래퍼">
+      <button type="button" class="다중선택버튼" onclick="다중선택토글('카테고리')">카테고리: 전체</button>
+      <div class="다중선택패널" id="카테고리필터패널"></div>
+    </div>
     <div class="다중선택" id="광고주필터래퍼">
       <button type="button" class="다중선택버튼" onclick="다중선택토글('광고주')">광고주: 전체</button>
       <div class="다중선택패널" id="광고주필터패널"></div>
@@ -479,25 +581,32 @@
 
   <!-- 분석 탭 -->
   <div id="분석탭" style="display:none">
+    <div id="분석옵션">
+      <label for="분석기준">비교 기준</label>
+      <select id="분석기준" onchange="분석렌더링()">
+        <option value="광고주">광고주별</option>
+        <option value="카테고리">카테고리별</option>
+      </select>
+    </div>
     <div class="차트그리드">
       <div class="차트박스">
         <h3>자사 vs 경쟁사 소재유형 비중 비교</h3>
         <div id="차트1" class="차트"></div>
       </div>
       <div class="차트박스">
-        <h3>광고주별 보종 집중도 비교</h3>
+        <h3 id="차트2제목">보종 집중도 비교</h3>
         <div id="차트2" class="차트"></div>
       </div>
       <div class="차트박스">
-        <h3>광고주별 후킹 전략 비교</h3>
+        <h3 id="차트3제목">후킹 전략 비교</h3>
         <div id="차트3" class="차트"></div>
       </div>
       <div class="차트박스">
-        <h3>광고주별 신규 소재 출시 빈도</h3>
+        <h3 id="차트4제목">신규 소재 출시 빈도</h3>
         <div id="차트4" class="차트"></div>
       </div>
       <div class="차트박스">
-        <h3>장기 운영 소재 현황 (30일/60일/90일 이상)</h3>
+        <h3 id="차트5제목">장기 운영 소재 현황 (30일/60일/90일 이상)</h3>
         <div id="차트5" class="차트"></div>
       </div>
       <div class="차트박스 차트박스-넓게">
@@ -513,6 +622,10 @@
       <button class="닫기버튼" onclick="팝업닫기('상세팝업')">&times;</button>
       <div id="상세이미지래퍼">
         <img id="상세이미지" src="" alt="광고 이미지">
+        <div id="상세이미지플레이스홀더" class="이미지플레이스홀더" style="display:none">
+          <span class="아이콘">🖼</span>
+          <span class="텍스트">이미지 없음</span>
+        </div>
       </div>
       <div id="상세정보">
         <h2 id="상세광고주"></h2>
@@ -566,11 +679,14 @@
         한 줄에 항목 하나씩 입력하세요. 여기서 수정한 내용은 "설정" 시트에 저장되며,
         필터/검색 및 상세 팝업의 분류 선택 항목에 반영됩니다.
       </div>
+      <h3>광고주 카테고리</h3>
+      <div id="카테고리설정목록"></div>
+      <div class="카테고리추가행">
+        <input type="text" id="새카테고리이름" placeholder="새 카테고리 이름 (예: 생명보험)">
+        <button type="button" onclick="카테고리추가()">+ 카테고리 추가</button>
+      </div>
+      <h3>분류 항목</h3>
       <div class="설정그리드">
-        <div class="필드그룹">
-          <label>광고주</label>
-          <textarea id="설정_광고주"></textarea>
-        </div>
         <div class="필드그룹">
           <label>소재유형</label>
           <textarea id="설정_소재유형"></textarea>
@@ -594,12 +710,57 @@
   <script src="https://www.gstatic.com/charts/loader.js"></script>
   <script>
     var 전체데이터 = [];
-    var 설정값 = { 광고주: [], 소재유형: [], 보종: [], 후킹: [] };
+    var 설정값 = { 카테고리: {}, 소재유형: [], 보종: [], 후킹: [] };
     var 선택된ad_id = null;
-    var 다중선택상태 = { 광고주: [], 소재유형: [], 보종: [], 후킹: [] };
-    var 다중선택기본텍스트 = { 광고주: "광고주", 소재유형: "소재유형", 보종: "보종", 후킹: "후킹" };
+    var 다중선택상태 = { 카테고리: [], 광고주: [], 소재유형: [], 보종: [], 후킹: [] };
+    var 다중선택기본텍스트 = { 카테고리: "카테고리", 광고주: "광고주", 소재유형: "소재유형", 보종: "보종", 후킹: "후킹" };
     var 현재탭 = "갤러리탭";
     var 차트로드완료 = false;
+
+    // 설정값.카테고리에 등록된 모든 광고주를 카테고리 등장 순서대로 합친 목록을 반환한다.
+    function 전체광고주목록() {
+      var 목록 = [];
+      Object.keys(설정값.카테고리 || {}).forEach(function (카테고리) {
+        (설정값.카테고리[카테고리] || []).forEach(function (광고주) {
+          if (목록.indexOf(광고주) === -1) 목록.push(광고주);
+        });
+      });
+      return 목록;
+    }
+
+    // 광고주명 -> 카테고리명 매핑을 반환한다.
+    function 광고주카테고리맵() {
+      var 맵 = {};
+      Object.keys(설정값.카테고리 || {}).forEach(function (카테고리) {
+        (설정값.카테고리[카테고리] || []).forEach(function (광고주) {
+          맵[광고주] = 카테고리;
+        });
+      });
+      return 맵;
+    }
+
+    // 자사(구분=자사) 광고주명을 데이터에서 추출한다.
+    function 자사광고주목록() {
+      var 목록 = [];
+      전체데이터.forEach(function (행) {
+        if (행.구분 === "자사" && 목록.indexOf(행.광고주) === -1) 목록.push(행.광고주);
+      });
+      return 목록;
+    }
+
+    // 광고주 필터 옵션: 자사 광고주 + 카테고리에 등록된 경쟁사 광고주
+    function 광고주옵션목록() {
+      var 목록 = 자사광고주목록();
+      전체광고주목록().forEach(function (광고주) {
+        if (목록.indexOf(광고주) === -1) 목록.push(광고주);
+      });
+      return 목록;
+    }
+
+    // 갤러리/분석에서 사용할 광고주 표시 순서: 자사 먼저, 그 다음 카테고리 등록 순서대로.
+    function 정렬순서계산() {
+      return 광고주옵션목록();
+    }
 
     google.charts.load("current", { packages: ["corechart"] });
     google.charts.setOnLoadCallback(function () {
@@ -622,12 +783,20 @@
     }
 
     function 필터옵션채우기() {
-      ["광고주", "소재유형", "보종", "후킹"].forEach(function (키) {
+      var 옵션맵 = {
+        카테고리: Object.keys(설정값.카테고리 || {}),
+        광고주: 광고주옵션목록(),
+        소재유형: 설정값.소재유형,
+        보종: 설정값.보종,
+        후킹: 설정값.후킹,
+      };
+
+      Object.keys(옵션맵).forEach(function (키) {
         // 설정 목록에서 사라진 값은 선택 상태에서도 제거
         다중선택상태[키] = 다중선택상태[키].filter(function (값) {
-          return (설정값[키] || []).indexOf(값) !== -1;
+          return (옵션맵[키] || []).indexOf(값) !== -1;
         });
-        다중선택패널채우기(키, 설정값[키]);
+        다중선택패널채우기(키, 옵션맵[키]);
         다중선택버튼갱신(키);
       });
     }
@@ -683,11 +852,10 @@
 
     function 필터초기화() {
       document.getElementById("검색입력").value = "";
-      ["광고주", "소재유형", "보종", "후킹"].forEach(function (키) {
+      Object.keys(다중선택상태).forEach(function (키) {
         다중선택상태[키] = [];
-        다중선택패널채우기(키, 설정값[키]);
-        다중선택버튼갱신(키);
       });
+      필터옵션채우기();
       document.getElementById("구분필터").value = "전체";
       document.getElementById("상태필터").value = "전체";
       document.getElementById("운영일수필터").value = "0";
@@ -707,7 +875,10 @@
       var 종료일_부터 = document.getElementById("종료일_부터").value;
       var 종료일_까지 = document.getElementById("종료일_까지").value;
 
+      var 광고주카테고리 = 광고주카테고리맵();
+
       var 결과 = 전체데이터.filter(function (행) {
+        if (다중선택상태.카테고리.length && 다중선택상태.카테고리.indexOf(광고주카테고리[행.광고주]) === -1) return false;
         if (다중선택상태.광고주.length && 다중선택상태.광고주.indexOf(행.광고주) === -1) return false;
         if (다중선택상태.소재유형.length && 다중선택상태.소재유형.indexOf(행.소재유형) === -1) return false;
         if (다중선택상태.보종.length && 다중선택상태.보종.indexOf(행.보종) === -1) return false;
@@ -754,8 +925,8 @@
         그룹[키].push(행);
       });
 
-      // 설정 시트에 등록된 광고주 순서를 우선 적용하고, 그 외 값은 뒤에 붙인다.
-      var 정렬순서 = (설정값.광고주 || []).filter(function (이름) { return 그룹[이름]; });
+      // 설정에 등록된 광고주 순서(자사 -> 카테고리 순)를 우선 적용하고, 그 외 값은 뒤에 붙인다.
+      var 정렬순서 = 정렬순서계산().filter(function (이름) { return 그룹[이름]; });
       광고주순서.forEach(function (이름) {
         if (정렬순서.indexOf(이름) === -1) 정렬순서.push(이름);
       });
@@ -793,6 +964,16 @@
         img.src = 행.이미지URL;
         img.loading = "lazy";
         이미지영역.appendChild(img);
+      } else {
+        이미지영역.classList.add("플레이스홀더");
+        var 아이콘 = document.createElement("span");
+        아이콘.className = "아이콘";
+        아이콘.textContent = "🖼";
+        var 텍스트 = document.createElement("span");
+        텍스트.className = "텍스트";
+        텍스트.textContent = "이미지 없음";
+        이미지영역.appendChild(아이콘);
+        이미지영역.appendChild(텍스트);
       }
       카드.appendChild(이미지영역);
 
@@ -833,7 +1014,17 @@
 
       선택된ad_id = ad_id;
 
-      document.getElementById("상세이미지").src = 행.이미지URL || "";
+      var 상세이미지 = document.getElementById("상세이미지");
+      var 상세이미지플레이스홀더 = document.getElementById("상세이미지플레이스홀더");
+      if (행.이미지URL) {
+        상세이미지.src = 행.이미지URL;
+        상세이미지.style.display = "";
+        상세이미지플레이스홀더.style.display = "none";
+      } else {
+        상세이미지.src = "";
+        상세이미지.style.display = "none";
+        상세이미지플레이스홀더.style.display = "";
+      }
       document.getElementById("상세광고주").textContent = 행.광고주 || "";
       document.getElementById("상세상태운영").textContent =
         "상태: " + (행.상태 || "-") + " · 운영일수: " + (행.운영일수 || 0) + "일 · 최초발견일: " + (행.최초발견일 || "-");
@@ -929,12 +1120,60 @@
     }
 
     function 설정열기() {
-      document.getElementById("설정_광고주").value = (설정값.광고주 || []).join("\n");
+      카테고리설정목록렌더링(설정값.카테고리);
       document.getElementById("설정_소재유형").value = (설정값.소재유형 || []).join("\n");
       document.getElementById("설정_보종").value = (설정값.보종 || []).join("\n");
       document.getElementById("설정_후킹").value = (설정값.후킹 || []).join("\n");
       document.getElementById("설정저장상태").textContent = "";
       팝업열기("설정팝업");
+    }
+
+    function 카테고리설정목록렌더링(카테고리맵) {
+      var 목록 = document.getElementById("카테고리설정목록");
+      목록.innerHTML = "";
+      Object.keys(카테고리맵 || {}).forEach(function (이름) {
+        목록.appendChild(카테고리블록만들기(이름, 카테고리맵[이름]));
+      });
+    }
+
+    function 카테고리블록만들기(이름, 광고주목록) {
+      var 블록 = document.createElement("div");
+      블록.className = "카테고리블록";
+
+      var 헤더행 = document.createElement("div");
+      헤더행.className = "카테고리블록헤더";
+
+      var 이름입력 = document.createElement("input");
+      이름입력.type = "text";
+      이름입력.className = "카테고리이름입력";
+      이름입력.value = 이름;
+      이름입력.placeholder = "카테고리 이름";
+
+      var 삭제버튼 = document.createElement("button");
+      삭제버튼.type = "button";
+      삭제버튼.className = "카테고리삭제버튼";
+      삭제버튼.textContent = "삭제";
+      삭제버튼.onclick = function () { 블록.remove(); };
+
+      헤더행.appendChild(이름입력);
+      헤더행.appendChild(삭제버튼);
+
+      var 텍스트영역 = document.createElement("textarea");
+      텍스트영역.className = "카테고리광고주입력";
+      텍스트영역.placeholder = "한 줄에 광고주 하나씩";
+      텍스트영역.value = (광고주목록 || []).join("\n");
+
+      블록.appendChild(헤더행);
+      블록.appendChild(텍스트영역);
+      return 블록;
+    }
+
+    function 카테고리추가() {
+      var 입력 = document.getElementById("새카테고리이름");
+      var 이름 = 입력.value.trim();
+      if (!이름) return;
+      document.getElementById("카테고리설정목록").appendChild(카테고리블록만들기(이름, []));
+      입력.value = "";
     }
 
     function 줄목록(엘리먼트id) {
@@ -945,8 +1184,19 @@
     }
 
     function 설정저장() {
+      var 카테고리 = {};
+      document.querySelectorAll("#카테고리설정목록 .카테고리블록").forEach(function (블록) {
+        var 이름 = 블록.querySelector(".카테고리이름입력").value.trim();
+        if (!이름) return;
+        var 광고주목록 = 블록.querySelector(".카테고리광고주입력").value
+          .split("\n")
+          .map(function (s) { return s.trim(); })
+          .filter(function (s) { return s.length > 0; });
+        카테고리[이름] = 광고주목록;
+      });
+
       var 새설정 = {
-        광고주: 줄목록("설정_광고주"),
+        카테고리: 카테고리,
         소재유형: 줄목록("설정_소재유형"),
         보종: 줄목록("설정_보종"),
         후킹: 줄목록("설정_후킹"),
@@ -1040,8 +1290,37 @@
       return 순서;
     }
 
+    // 분석 탭 비교 기준("광고주"/"카테고리")에 따라 각 행에 __분석그룹 필드를 채운다.
+    function 분석그룹맵핑적용() {
+      var 기준 = document.getElementById("분석기준").value;
+      var 카테고리맵 = 광고주카테고리맵();
+      전체데이터.forEach(function (행) {
+        if (기준 === "카테고리") {
+          행.__분석그룹 = 행.구분 === "자사" ? 행.광고주 : (카테고리맵[행.광고주] || "(미분류)");
+        } else {
+          행.__분석그룹 = 행.광고주;
+        }
+      });
+      return 기준;
+    }
+
+    // 분석 탭 비교 기준에 따른 그룹 표시 순서(자사 -> 카테고리/광고주 등록 순)를 반환한다.
+    function 분석그룹우선순위(기준) {
+      var 자사목록 = 자사광고주목록();
+      if (기준 === "카테고리") {
+        return 자사목록.concat(Object.keys(설정값.카테고리 || {}));
+      }
+      return 정렬순서계산();
+    }
+
     function 분석렌더링() {
       if (!차트로드완료 || !전체데이터.length) return;
+      var 기준 = 분석그룹맵핑적용();
+      var 기준라벨 = 기준 === "카테고리" ? "카테고리별" : "광고주별";
+      ["차트2제목", "차트3제목", "차트4제목", "차트5제목"].forEach(function (id) {
+        var el = document.getElementById(id);
+        el.textContent = 기준라벨 + " " + el.textContent.replace(/^(광고주별|카테고리별) /, "");
+      });
       차트_소재유형비교();
       차트_보종집중도();
       차트_후킹전략();
@@ -1072,11 +1351,12 @@
       });
     }
 
-    // 2. 광고주별 보종 집중도 비교
+    // 2. 보종 집중도 비교 (광고주별/카테고리별)
     function 차트_보종집중도() {
+      var 기준 = document.getElementById("분석기준").value;
       var 보종목록 = (설정값.보종 || []).concat(["미분류"]);
-      var 집계 = 분류집계(전체데이터, "광고주", "보종");
-      var 광고주목록 = 그룹순서계산(전체데이터, "광고주", 설정값.광고주);
+      var 집계 = 분류집계(전체데이터, "__분석그룹", "보종");
+      var 광고주목록 = 그룹순서계산(전체데이터, "__분석그룹", 분석그룹우선순위(기준));
 
       var 헤더 = ["광고주"].concat(보종목록);
       var 행들 = 광고주목록.map(function (광고주) {
@@ -1095,11 +1375,12 @@
       });
     }
 
-    // 3. 광고주별 후킹 전략 비교
+    // 3. 후킹 전략 비교 (광고주별/카테고리별)
     function 차트_후킹전략() {
+      var 기준 = document.getElementById("분석기준").value;
       var 후킹목록 = (설정값.후킹 || []).concat(["미분류"]);
-      var 집계 = 분류집계(전체데이터, "광고주", "후킹");
-      var 광고주목록 = 그룹순서계산(전체데이터, "광고주", 설정값.광고주);
+      var 집계 = 분류집계(전체데이터, "__분석그룹", "후킹");
+      var 광고주목록 = 그룹순서계산(전체데이터, "__분석그룹", 분석그룹우선순위(기준));
 
       var 헤더 = ["광고주"].concat(후킹목록);
       var 행들 = 광고주목록.map(function (광고주) {
@@ -1118,13 +1399,14 @@
       });
     }
 
-    // 4. 광고주별 신규 소재 출시 빈도 (누적 소재 수)
+    // 4. 신규 소재 출시 빈도 (누적 소재 수, 광고주별/카테고리별)
     function 차트_신규소재빈도() {
-      var 광고주목록 = 그룹순서계산(전체데이터, "광고주", 설정값.광고주);
+      var 기준 = document.getElementById("분석기준").value;
+      var 광고주목록 = 그룹순서계산(전체데이터, "__분석그룹", 분석그룹우선순위(기준));
 
       var 헤더 = ["광고주", "소재 수"];
       var 행들 = 광고주목록.map(function (광고주) {
-        var 건수 = 전체데이터.filter(function (행) { return 행.광고주 === 광고주; }).length;
+        var 건수 = 전체데이터.filter(function (행) { return 행.__분석그룹 === 광고주; }).length;
         return [광고주, 건수];
       });
 
@@ -1137,13 +1419,14 @@
       });
     }
 
-    // 5. 장기 운영 소재 현황 (30일/60일/90일 이상)
+    // 5. 장기 운영 소재 현황 (30일/60일/90일 이상, 광고주별/카테고리별)
     function 차트_장기운영현황() {
-      var 광고주목록 = 그룹순서계산(전체데이터, "광고주", 설정값.광고주);
+      var 기준 = document.getElementById("분석기준").value;
+      var 광고주목록 = 그룹순서계산(전체데이터, "__분석그룹", 분석그룹우선순위(기준));
 
       var 헤더 = ["광고주", "30일 이상", "60일 이상", "90일 이상"];
       var 행들 = 광고주목록.map(function (광고주) {
-        var 행데이터 = 전체데이터.filter(function (행) { return 행.광고주 === 광고주; });
+        var 행데이터 = 전체데이터.filter(function (행) { return 행.__분석그룹 === 광고주; });
         var c30 = 행데이터.filter(function (행) { return Number(행.운영일수 || 0) >= 30; }).length;
         var c60 = 행데이터.filter(function (행) { return Number(행.운영일수 || 0) >= 60; }).length;
         var c90 = 행데이터.filter(function (행) { return Number(행.운영일수 || 0) >= 90; }).length;
