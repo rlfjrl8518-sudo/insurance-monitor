@@ -107,7 +107,7 @@
     .차트다운로드버튼:hover { background: var(--border); }
     .차트 {
       width: 100%;
-      height: 320px;
+      height: 380px;
     }
     @media (max-width: 900px) {
       .차트그리드 { grid-template-columns: 1fr; }
@@ -791,6 +791,12 @@
         <input type="text" id="새그룹이름" placeholder="새 그룹 이름 (예: 삼성화재)">
         <button type="button" onclick="그룹추가()">+ 그룹 추가</button>
       </div>
+      <h3>자사 설정</h3>
+      <div class="안내">
+        여기서 선택한 광고주(또는 그룹)만 "자사"로 인식되어 갤러리/필터/분석의 자사·경쟁사 구분에 반영됩니다.
+        선택하지 않으면 기존 수집 결과의 구분을 그대로 사용합니다.
+      </div>
+      <div id="자사설정목록" class="그룹블록"></div>
       <h3>분류 항목</h3>
       <div class="설정그리드">
         <div class="필드그룹">
@@ -816,7 +822,7 @@
   <script src="https://www.gstatic.com/charts/loader.js"></script>
   <script>
     var 전체데이터 = [];
-    var 설정값 = { 카테고리: {}, 소재유형: [], 보종: [], 후킹: [], 광고주그룹: {} };
+    var 설정값 = { 카테고리: {}, 소재유형: [], 보종: [], 후킹: [], 자사: [], 광고주그룹: {} };
     var 선택된ad_id = null;
     var 그룹핑적용 = false;
     var 다중선택상태 = { 카테고리: [], 광고주: [], 소재유형: [], 보종: [], 후킹: [] };
@@ -859,13 +865,33 @@
       return 맵;
     }
 
-    // 그룹핑적용 여부에 따라 각 행의 표시용 광고주명(__표시광고주)을 갱신한다.
-    // (그룹핑적용=true면 그룹에 속한 광고주는 그룹명으로, 아니면 원래 광고주명을 그대로 사용)
+    // 그룹핑적용 여부에 따라 각 행의 표시용 광고주명(__표시광고주)을 갱신하고,
+    // 설정값.자사 기준으로 자사/경쟁사 구분(__구분)을 다시 계산한다.
     function 표시광고주명_갱신() {
       var 그룹맵 = 광고주그룹맵();
       전체데이터.forEach(function (행) {
         행.__표시광고주 = (그룹핑적용 && 그룹맵[행.광고주]) ? 그룹맵[행.광고주] : 행.광고주;
+        행.__구분 = 자사인가(행) ? "자사" : "경쟁사";
       });
+    }
+
+    // 설정값.자사에 등록된 광고주명/그룹명을 기준으로 자사 여부를 판단한다.
+    // 설정값.자사가 비어 있으면(아직 설정 전) 수집 시점에 기록된 구분 컬럼 값을 그대로 사용한다.
+    function 자사인가(행) {
+      var 자사목록 = 설정값.자사 || [];
+      if (자사목록.length === 0) return 행.구분 === "자사";
+      if (자사목록.indexOf(행.광고주) !== -1) return true;
+      var 그룹명 = (광고주그룹맵())[행.광고주];
+      return !!(그룹명 && 자사목록.indexOf(그룹명) !== -1);
+    }
+
+    // 전체데이터에 등장하는 모든 광고주명 목록(자사 설정 후보)을 반환한다.
+    function 데이터광고주명목록() {
+      var 목록 = [];
+      전체데이터.forEach(function (행) {
+        if (행.광고주 && 목록.indexOf(행.광고주) === -1) 목록.push(행.광고주);
+      });
+      return 목록;
     }
 
     // 광고주 필터 옵션/갤러리 정렬 순서에 사용할 표시명 목록. 그룹핑적용 시 그룹명 기준으로 중복 제거한다.
@@ -896,11 +922,11 @@
       필터적용();
     }
 
-    // 자사(구분=자사) 광고주명을 데이터에서 추출한다.
+    // 자사(__구분=자사) 광고주명을 데이터에서 추출한다.
     function 자사광고주목록() {
       var 목록 = [];
       전체데이터.forEach(function (행) {
-        if (행.구분 === "자사" && 목록.indexOf(행.광고주) === -1) 목록.push(행.광고주);
+        if (행.__구분 === "자사" && 목록.indexOf(행.광고주) === -1) 목록.push(행.광고주);
       });
       return 목록;
     }
@@ -1095,7 +1121,7 @@
         if (다중선택상태.소재유형.length && 다중선택상태.소재유형.indexOf(행.소재유형) === -1) return false;
         if (다중선택상태.보종.length && 다중선택상태.보종.indexOf(행.보종) === -1) return false;
         if (다중선택상태.후킹.length && 다중선택상태.후킹.indexOf(행.후킹) === -1) return false;
-        if (구분 !== "전체" && 행.구분 !== 구분) return false;
+        if (구분 !== "전체" && 행.__구분 !== 구분) return false;
         if (상태 !== "전체" && 행.상태 !== 상태) return false;
         if (운영일수기준 && Number(행.운영일수 || 0) < 운영일수기준) return false;
 
@@ -1147,7 +1173,7 @@
         var 섹션 = document.createElement("div");
         섹션.className = "광고주섹션";
 
-        var 구분값 = 그룹[광고주명][0] && 그룹[광고주명][0].구분;
+        var 구분값 = 그룹[광고주명][0] && 그룹[광고주명][0].__구분;
         var 제목 = document.createElement("h2");
         제목.textContent = 광고주명 + (구분값 === "자사" ? " (자사)" : "") + " (" + 그룹[광고주명].length + "건)";
         섹션.appendChild(제목);
@@ -1334,6 +1360,7 @@
     function 설정열기() {
       카테고리설정목록렌더링(설정값.카테고리);
       그룹설정목록렌더링(설정값.광고주그룹);
+      자사설정목록렌더링();
       document.getElementById("설정_소재유형").value = (설정값.소재유형 || []).join("\n");
       document.getElementById("설정_보종").value = (설정값.보종 || []).join("\n");
       document.getElementById("설정_후킹").value = (설정값.후킹 || []).join("\n");
@@ -1454,6 +1481,49 @@
       입력.value = "";
     }
 
+    // "자사 설정" 체크박스 목록을 그린다.
+    // 후보는 데이터에 등장하는 개별 광고주명과, 설정에 등록된 그룹명이다.
+    function 자사설정목록렌더링() {
+      var 컨테이너 = document.getElementById("자사설정목록");
+      컨테이너.innerHTML = "";
+      var 자사목록 = 설정값.자사 || [];
+
+      var 광고주영역 = document.createElement("div");
+      광고주영역.className = "그룹광고주선택";
+      데이터광고주명목록().forEach(function (이름) {
+        광고주영역.appendChild(자사체크박스만들기(이름, 자사목록));
+      });
+      컨테이너.appendChild(광고주영역);
+
+      var 그룹명목록 = Object.keys(설정값.광고주그룹 || {});
+      if (그룹명목록.length) {
+        var 구분선 = document.createElement("div");
+        구분선.className = "안내";
+        구분선.style.margin = "6px 0";
+        구분선.textContent = "그룹";
+        컨테이너.appendChild(구분선);
+
+        var 그룹영역 = document.createElement("div");
+        그룹영역.className = "그룹광고주선택";
+        그룹명목록.forEach(function (이름) {
+          그룹영역.appendChild(자사체크박스만들기(이름, 자사목록));
+        });
+        컨테이너.appendChild(그룹영역);
+      }
+    }
+
+    function 자사체크박스만들기(이름, 선택목록) {
+      var label = document.createElement("label");
+      var 체크 = document.createElement("input");
+      체크.type = "checkbox";
+      체크.className = "자사선택체크";
+      체크.value = 이름;
+      체크.checked = 선택목록.indexOf(이름) !== -1;
+      label.appendChild(체크);
+      label.appendChild(document.createTextNode(이름));
+      return label;
+    }
+
     function 줄목록(엘리먼트id) {
       return document.getElementById(엘리먼트id).value
         .split("\n")
@@ -1484,11 +1554,17 @@
         광고주그룹[이름] = 포함목록;
       });
 
+      var 자사 = [];
+      document.querySelectorAll("#자사설정목록 .자사선택체크").forEach(function (체크) {
+        if (체크.checked) 자사.push(체크.value);
+      });
+
       var 새설정 = {
         카테고리: 카테고리,
         소재유형: 줄목록("설정_소재유형"),
         보종: 줄목록("설정_보종"),
         후킹: 줄목록("설정_후킹"),
+        자사: 자사,
         광고주그룹: 광고주그룹,
       };
 
@@ -1557,16 +1633,35 @@
       if (탭이름 === "분석탭") 분석렌더링();
     }
 
+    // 분류값이 비어있으면 "미분류", 허용목록에 없는(설정에 정의되지 않은) 값이면 "기타"로 통합한다.
+    function 분류값정규화(값, 허용목록) {
+      if (!값) return "미분류";
+      if (허용목록 && 허용목록.indexOf(값) !== -1) return 값;
+      return "기타";
+    }
+
     // 데이터를 그룹키 기준으로 묶고, 각 그룹 내에서 분류키별 건수를 집계한다.
-    function 분류집계(데이터, 그룹키, 분류키) {
+    // 허용목록이 주어지면 목록에 없는 값은 "기타"로 통합한다.
+    function 분류집계(데이터, 그룹키, 분류키, 허용목록) {
       var 결과 = {};
       데이터.forEach(function (행) {
         var 그룹값 = 행[그룹키] || "(미지정)";
-        var 분류값 = 행[분류키] || "미분류";
+        var 분류값 = 분류값정규화(행[분류키], 허용목록);
         if (!결과[그룹값]) 결과[그룹값] = {};
         결과[그룹값][분류값] = (결과[그룹값][분류값] || 0) + 1;
       });
       return 결과;
+    }
+
+    // 설정에 정의된 분류목록 + "미분류" + (필요 시) "기타"를 반환한다.
+    function 분류목록계산(데이터, 분류키, 허용목록) {
+      var 목록 = (허용목록 || []).concat(["미분류"]);
+      var 기타존재 = 데이터.some(function (행) {
+        var 값 = 행[분류키];
+        return 값 && (허용목록 || []).indexOf(값) === -1;
+      });
+      if (기타존재) 목록.push("기타");
+      return 목록;
     }
 
     // 데이터에 등장하는 그룹값을, 우선순위목록(설정값 순서)을 앞세워 정렬한다.
@@ -1589,7 +1684,7 @@
       var 그룹맵 = 광고주그룹맵();
       전체데이터.forEach(function (행) {
         if (기준 === "카테고리") {
-          행.__분석그룹 = 행.구분 === "자사" ? 행.광고주 : (카테고리맵[행.광고주] || "(미분류)");
+          행.__분석그룹 = 행.__구분 === "자사" ? 행.광고주 : (카테고리맵[행.광고주] || "(미분류)");
         } else if (기준 === "그룹") {
           행.__분석그룹 = 그룹맵[행.광고주] || 행.광고주;
         } else {
@@ -1667,7 +1762,7 @@
       var 카테고리맵 = 광고주카테고리맵();
 
       return 전체데이터.filter(function (행) {
-        if (행.구분 === "자사") return true;
+        if (행.__구분 === "자사") return true;
         if (카테고리 !== "전체" && 카테고리맵[행.광고주] !== 카테고리) return false;
         if (광고주 !== "전체" && 행.광고주 !== 광고주) return false;
         return true;
@@ -1681,7 +1776,7 @@
       var 기준라벨 = 기준 === "카테고리" ? "카테고리별" : (기준 === "그룹" ? "그룹별" : "광고주별");
       ["차트2제목", "차트3제목", "차트4제목"].forEach(function (id) {
         var el = document.getElementById(id);
-        el.textContent = 기준라벨 + " " + el.textContent.replace(/^(광고주별|카테고리별) /, "");
+        el.textContent = 기준라벨 + " " + el.textContent.replace(/^(?:(?:광고주별|카테고리별|그룹별)\s*)+/, "");
       });
       차트_소재유형비교();
       차트_보종집중도();
@@ -1691,9 +1786,9 @@
 
     // 1. 자사 vs 경쟁사 소재유형 비중 비교
     function 차트_소재유형비교() {
-      var 소재유형목록 = (설정값.소재유형 || []).concat(["미분류"]);
-      var 집계 = 분류집계(분석필터데이터, "구분", "소재유형");
-      var 구분목록 = 그룹순서계산(분석필터데이터, "구분", ["자사", "경쟁사"]);
+      var 소재유형목록 = 분류목록계산(분석필터데이터, "소재유형", 설정값.소재유형);
+      var 집계 = 분류집계(분석필터데이터, "__구분", "소재유형", 설정값.소재유형);
+      var 구분목록 = 그룹순서계산(분석필터데이터, "__구분", ["자사", "경쟁사"]);
 
       var 헤더 = ["구분"].concat(소재유형목록);
       var 행들 = 구분목록.map(function (구분) {
@@ -1716,8 +1811,8 @@
     // 2. 보종 집중도 비교 (광고주별/카테고리별)
     function 차트_보종집중도() {
       var 기준 = document.getElementById("분석기준").value;
-      var 보종목록 = (설정값.보종 || []).concat(["미분류"]);
-      var 집계 = 분류집계(분석필터데이터, "__분석그룹", "보종");
+      var 보종목록 = 분류목록계산(분석필터데이터, "보종", 설정값.보종);
+      var 집계 = 분류집계(분석필터데이터, "__분석그룹", "보종", 설정값.보종);
       var 광고주목록 = 그룹순서계산(분석필터데이터, "__분석그룹", 분석그룹우선순위(기준));
 
       var 헤더 = ["광고주"].concat(보종목록);
@@ -1734,16 +1829,16 @@
       chart.draw(data, {
         isStacked: "percent",
         legend: { position: "top" },
-        chartArea: { width: "80%", height: "70%" },
-        hAxis: { slantedText: true, slantedTextAngle: 30 },
+        chartArea: { width: "85%", height: "50%" },
+        hAxis: { slantedText: true, slantedTextAngle: 45, textStyle: { fontSize: 10 } },
       });
     }
 
     // 3. 후킹 전략 비교 (광고주별/카테고리별)
     function 차트_후킹전략() {
       var 기준 = document.getElementById("분석기준").value;
-      var 후킹목록 = (설정값.후킹 || []).concat(["미분류"]);
-      var 집계 = 분류집계(분석필터데이터, "__분석그룹", "후킹");
+      var 후킹목록 = 분류목록계산(분석필터데이터, "후킹", 설정값.후킹);
+      var 집계 = 분류집계(분석필터데이터, "__분석그룹", "후킹", 설정값.후킹);
       var 광고주목록 = 그룹순서계산(분석필터데이터, "__분석그룹", 분석그룹우선순위(기준));
 
       var 헤더 = ["광고주"].concat(후킹목록);
@@ -1760,8 +1855,8 @@
       chart.draw(data, {
         isStacked: "percent",
         legend: { position: "top" },
-        chartArea: { width: "80%", height: "70%" },
-        hAxis: { slantedText: true, slantedTextAngle: 30 },
+        chartArea: { width: "85%", height: "50%" },
+        hAxis: { slantedText: true, slantedTextAngle: 45, textStyle: { fontSize: 10 } },
       });
     }
 
@@ -1782,8 +1877,8 @@
       var chart = new google.visualization.ColumnChart(document.getElementById("차트4"));
       chart.draw(data, {
         legend: { position: "none" },
-        chartArea: { width: "80%", height: "70%" },
-        hAxis: { slantedText: true, slantedTextAngle: 30 },
+        chartArea: { width: "85%", height: "50%" },
+        hAxis: { slantedText: true, slantedTextAngle: 45, textStyle: { fontSize: 10 } },
       });
     }
 

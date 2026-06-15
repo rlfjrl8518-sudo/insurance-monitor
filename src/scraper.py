@@ -185,13 +185,18 @@ def 광고주_광고_수집(page, 광고주명, 설정, 진행_콜백=print):
     스크롤_대기 = int(설정["scraping"]["scroll_wait_seconds"] * 1000)
     무변화_허용_횟수 = 설정["scraping"]["scroll_stable_count"]
 
-    # 새로 로드되는 프로필 이미지(_8nqq) 개수가 더 이상 늘지 않으면 스크롤을 멈춘다.
-    # (최대_스크롤_횟수는 무한 스크롤에 빠지지 않도록 하는 안전장치)
+    # 화면 밖으로 벗어난 카드는 이미지가 지연 로딩 해제되어 imageUrl을 잃어버릴 수
+    # 있으므로, 스크롤이 끝난 뒤 한 번만 추출하지 않고 스크롤마다 누적 추출한다
+    # (library_id 기준 중복 제거는 아래에서 처리).
+    # 또한 새로 로드되는 프로필 이미지(_8nqq) 개수가 더 이상 늘지 않으면 스크롤을
+    # 멈춘다 (최대_스크롤_횟수는 무한 스크롤에 빠지지 않도록 하는 안전장치).
+    원본_카드_목록 = list(page.evaluate(JS_카드_추출))
     이전_카드_수 = page.evaluate("() => document.querySelectorAll('img._8nqq').length")
     무변화_횟수 = 0
     for i in range(최대_스크롤_횟수):
         page.mouse.wheel(0, 4000)
         page.wait_for_timeout(스크롤_대기)
+        원본_카드_목록.extend(page.evaluate(JS_카드_추출))
 
         현재_카드_수 = page.evaluate("() => document.querySelectorAll('img._8nqq').length")
         if 현재_카드_수 <= 이전_카드_수:
@@ -202,13 +207,19 @@ def 광고주_광고_수집(page, 광고주명, 설정, 진행_콜백=print):
             무변화_횟수 = 0
         이전_카드_수 = 현재_카드_수
 
-    원본_카드_목록 = page.evaluate(JS_카드_추출)
-    진행_콜백(f"  추출된 원본 카드 수: {len(원본_카드_목록)}")
+    진행_콜백(f"  추출된 원본 카드 수: {len(원본_카드_목록)} (스크롤 단계별 누적, 중복 포함)")
 
     결과 = []
     수집된_library_id = set()
+    페이지명_불일치_수 = 0
     for 카드 in 원본_카드_목록:
         if not 카드.get("imageUrl"):
+            continue
+
+        # 설정 시트 검색어(광고주명)와 실제 페이지명이 정확히 일치하지 않으면 제외
+        # (예: "삼성화재" 검색 시 "삼성화재다이렉트", "삼성화재생명" 등은 수집하지 않음)
+        if 카드.get("pageName", "").strip() != 광고주명:
+            페이지명_불일치_수 += 1
             continue
 
         library_id, 시작일, 광고텍스트 = 카드_텍스트_파싱(카드["text"], 카드["pageName"])
@@ -227,5 +238,8 @@ def 광고주_광고_수집(page, 광고주명, 설정, 진행_콜백=print):
             "광고시작일": 시작일 or "",
             "광고상세URL": f"{광고라이브러리_기본URL}?id={library_id}",
         })
+
+    if 페이지명_불일치_수:
+        진행_콜백(f"  페이지명 불일치로 제외된 카드 수: {페이지명_불일치_수}")
 
     return 결과
