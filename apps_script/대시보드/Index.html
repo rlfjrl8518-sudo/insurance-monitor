@@ -107,7 +107,7 @@
     .차트다운로드버튼:hover { background: var(--border); }
     .차트 {
       width: 100%;
-      height: 320px;
+      height: 380px;
     }
     @media (max-width: 900px) {
       .차트그리드 { grid-template-columns: 1fr; }
@@ -1557,16 +1557,35 @@
       if (탭이름 === "분석탭") 분석렌더링();
     }
 
+    // 분류값이 비어있으면 "미분류", 허용목록에 없는(설정에 정의되지 않은) 값이면 "기타"로 통합한다.
+    function 분류값정규화(값, 허용목록) {
+      if (!값) return "미분류";
+      if (허용목록 && 허용목록.indexOf(값) !== -1) return 값;
+      return "기타";
+    }
+
     // 데이터를 그룹키 기준으로 묶고, 각 그룹 내에서 분류키별 건수를 집계한다.
-    function 분류집계(데이터, 그룹키, 분류키) {
+    // 허용목록이 주어지면 목록에 없는 값은 "기타"로 통합한다.
+    function 분류집계(데이터, 그룹키, 분류키, 허용목록) {
       var 결과 = {};
       데이터.forEach(function (행) {
         var 그룹값 = 행[그룹키] || "(미지정)";
-        var 분류값 = 행[분류키] || "미분류";
+        var 분류값 = 분류값정규화(행[분류키], 허용목록);
         if (!결과[그룹값]) 결과[그룹값] = {};
         결과[그룹값][분류값] = (결과[그룹값][분류값] || 0) + 1;
       });
       return 결과;
+    }
+
+    // 설정에 정의된 분류목록 + "미분류" + (필요 시) "기타"를 반환한다.
+    function 분류목록계산(데이터, 분류키, 허용목록) {
+      var 목록 = (허용목록 || []).concat(["미분류"]);
+      var 기타존재 = 데이터.some(function (행) {
+        var 값 = 행[분류키];
+        return 값 && (허용목록 || []).indexOf(값) === -1;
+      });
+      if (기타존재) 목록.push("기타");
+      return 목록;
     }
 
     // 데이터에 등장하는 그룹값을, 우선순위목록(설정값 순서)을 앞세워 정렬한다.
@@ -1681,7 +1700,7 @@
       var 기준라벨 = 기준 === "카테고리" ? "카테고리별" : (기준 === "그룹" ? "그룹별" : "광고주별");
       ["차트2제목", "차트3제목", "차트4제목"].forEach(function (id) {
         var el = document.getElementById(id);
-        el.textContent = 기준라벨 + " " + el.textContent.replace(/^(광고주별|카테고리별) /, "");
+        el.textContent = 기준라벨 + " " + el.textContent.replace(/^(?:(?:광고주별|카테고리별|그룹별)\s*)+/, "");
       });
       차트_소재유형비교();
       차트_보종집중도();
@@ -1691,8 +1710,8 @@
 
     // 1. 자사 vs 경쟁사 소재유형 비중 비교
     function 차트_소재유형비교() {
-      var 소재유형목록 = (설정값.소재유형 || []).concat(["미분류"]);
-      var 집계 = 분류집계(분석필터데이터, "구분", "소재유형");
+      var 소재유형목록 = 분류목록계산(분석필터데이터, "소재유형", 설정값.소재유형);
+      var 집계 = 분류집계(분석필터데이터, "구분", "소재유형", 설정값.소재유형);
       var 구분목록 = 그룹순서계산(분석필터데이터, "구분", ["자사", "경쟁사"]);
 
       var 헤더 = ["구분"].concat(소재유형목록);
@@ -1716,8 +1735,8 @@
     // 2. 보종 집중도 비교 (광고주별/카테고리별)
     function 차트_보종집중도() {
       var 기준 = document.getElementById("분석기준").value;
-      var 보종목록 = (설정값.보종 || []).concat(["미분류"]);
-      var 집계 = 분류집계(분석필터데이터, "__분석그룹", "보종");
+      var 보종목록 = 분류목록계산(분석필터데이터, "보종", 설정값.보종);
+      var 집계 = 분류집계(분석필터데이터, "__분석그룹", "보종", 설정값.보종);
       var 광고주목록 = 그룹순서계산(분석필터데이터, "__분석그룹", 분석그룹우선순위(기준));
 
       var 헤더 = ["광고주"].concat(보종목록);
@@ -1734,16 +1753,16 @@
       chart.draw(data, {
         isStacked: "percent",
         legend: { position: "top" },
-        chartArea: { width: "80%", height: "70%" },
-        hAxis: { slantedText: true, slantedTextAngle: 30 },
+        chartArea: { width: "85%", height: "50%" },
+        hAxis: { slantedText: true, slantedTextAngle: 45, textStyle: { fontSize: 10 } },
       });
     }
 
     // 3. 후킹 전략 비교 (광고주별/카테고리별)
     function 차트_후킹전략() {
       var 기준 = document.getElementById("분석기준").value;
-      var 후킹목록 = (설정값.후킹 || []).concat(["미분류"]);
-      var 집계 = 분류집계(분석필터데이터, "__분석그룹", "후킹");
+      var 후킹목록 = 분류목록계산(분석필터데이터, "후킹", 설정값.후킹);
+      var 집계 = 분류집계(분석필터데이터, "__분석그룹", "후킹", 설정값.후킹);
       var 광고주목록 = 그룹순서계산(분석필터데이터, "__분석그룹", 분석그룹우선순위(기준));
 
       var 헤더 = ["광고주"].concat(후킹목록);
@@ -1760,8 +1779,8 @@
       chart.draw(data, {
         isStacked: "percent",
         legend: { position: "top" },
-        chartArea: { width: "80%", height: "70%" },
-        hAxis: { slantedText: true, slantedTextAngle: 30 },
+        chartArea: { width: "85%", height: "50%" },
+        hAxis: { slantedText: true, slantedTextAngle: 45, textStyle: { fontSize: 10 } },
       });
     }
 
@@ -1782,8 +1801,8 @@
       var chart = new google.visualization.ColumnChart(document.getElementById("차트4"));
       chart.draw(data, {
         legend: { position: "none" },
-        chartArea: { width: "80%", height: "70%" },
-        hAxis: { slantedText: true, slantedTextAngle: 30 },
+        chartArea: { width: "85%", height: "50%" },
+        hAxis: { slantedText: true, slantedTextAngle: 45, textStyle: { fontSize: 10 } },
       });
     }
 
