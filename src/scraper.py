@@ -97,8 +97,9 @@ def 카드_텍스트_파싱(raw_text, 페이지명):
     """광고 카드의 innerText에서 라이브러리 ID, 게재 시작일, 광고 텍스트를 분리한다.
 
     Meta 광고 라이브러리 카드는 항상
-    "...광고 상세 정보 보기 -> (페이지/후원 이름) -> 광고 -> (실제 광고 본문)" 순서로
-    구성되므로, 이 고정 패턴을 기준으로 헤더와 본문을 구분한다.
+    "...(광고 상세 정보 보기|요약 세부 사항 보기) -> (페이지/후원 이름) -> 광고 -> (실제 광고 본문)"
+    순서로 구성되므로, 이 고정 패턴을 기준으로 헤더와 본문을 구분한다.
+    ("요약 세부 사항 보기"는 같은 광고에 여러 크리에이티브 버전이 있는 카드에서 나타난다.)
     """
     lines = [line.strip() for line in raw_text.split("\n")]
 
@@ -120,7 +121,7 @@ def 카드_텍스트_파싱(raw_text, 페이지명):
                     년, 월, 일 = m.groups()
                     start_date = f"{년}-{int(월):02d}-{int(일):02d}"
                     continue
-            if line == "광고 상세 정보 보기":
+            if line in ("광고 상세 정보 보기", "요약 세부 사항 보기"):
                 state = "sponsor"
             continue
         elif state == "sponsor":
@@ -180,12 +181,26 @@ def 광고주_광고_수집(page, 광고주명, 설정, 진행_콜백=print):
     page.goto(url, wait_until="domcontentloaded")
     page.wait_for_timeout(int(설정["scraping"]["page_load_wait_seconds"] * 1000))
 
-    스크롤_횟수 = 설정["scraping"]["scroll_count"]
+    최대_스크롤_횟수 = 설정["scraping"]["scroll_count"]
     스크롤_대기 = int(설정["scraping"]["scroll_wait_seconds"] * 1000)
+    무변화_허용_횟수 = 설정["scraping"]["scroll_stable_count"]
 
-    for i in range(스크롤_횟수):
+    # 새로 로드되는 프로필 이미지(_8nqq) 개수가 더 이상 늘지 않으면 스크롤을 멈춘다.
+    # (최대_스크롤_횟수는 무한 스크롤에 빠지지 않도록 하는 안전장치)
+    이전_카드_수 = page.evaluate("() => document.querySelectorAll('img._8nqq').length")
+    무변화_횟수 = 0
+    for i in range(최대_스크롤_횟수):
         page.mouse.wheel(0, 4000)
         page.wait_for_timeout(스크롤_대기)
+
+        현재_카드_수 = page.evaluate("() => document.querySelectorAll('img._8nqq').length")
+        if 현재_카드_수 <= 이전_카드_수:
+            무변화_횟수 += 1
+            if 무변화_횟수 >= 무변화_허용_횟수:
+                break
+        else:
+            무변화_횟수 = 0
+        이전_카드_수 = 현재_카드_수
 
     원본_카드_목록 = page.evaluate(JS_카드_추출)
     진행_콜백(f"  추출된 원본 카드 수: {len(원본_카드_목록)}")

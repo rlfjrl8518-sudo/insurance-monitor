@@ -26,7 +26,8 @@
     "country": "KR",
     "active_status": "active",
     "ad_type": "all",
-    "scroll_count": 8,
+    "scroll_count": 30,
+    "scroll_stable_count": 2,
     "scroll_wait_seconds": 2.5,
     "page_load_wait_seconds": 4,
     "headless": true
