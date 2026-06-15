@@ -25,7 +25,7 @@ var 고정_분류_컬럼 = ["소재유형", "보종", "후킹"];
 function doGet() {
   return HtmlService.createTemplateFromFile("Index")
     .evaluate()
-    .setTitle("한화손해보험 경쟁사 광고 모니터링")
+    .setTitle("[보험업종 DA소재 모니터링]")
     .addMetaTag("viewport", "width=device-width, initial-scale=1")
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
 }
