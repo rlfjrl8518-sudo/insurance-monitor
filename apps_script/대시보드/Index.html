@@ -388,7 +388,7 @@
       color: var(--text-light);
       margin-bottom: 4px;
     }
-    .필드그룹 select, .필드그룹 textarea {
+    .필드그룹 select, .필드그룹 textarea, .필드그룹 input[type=text] {
       width: 100%;
       padding: 6px 8px;
       border: 1px solid var(--border);
@@ -439,10 +439,21 @@
       margin-bottom: 16px;
     }
     #설정팝업 .필드그룹 textarea { min-height: 140px; }
-    #설정팝업 .안내 {
+    #설정팝업 .안내, #수동추가팝업 .안내 {
       font-size: 12px;
       color: var(--text-light);
       margin-bottom: 14px;
+    }
+    #수동추가목록 {
+      font-size: 12px;
+      color: var(--text-light);
+      max-height: 160px;
+      overflow-y: auto;
+    }
+    .수동추가행 {
+      padding: 4px 0;
+      border-bottom: 1px solid var(--border);
+      word-break: break-all;
     }
     #카테고리설정목록 {
       display: grid;
@@ -580,6 +591,7 @@
     <h1>[보험업종 DA소재 모니터링]</h1>
     <div>
       <button id="수집버튼" onclick="수집실행()">▶ 지금 수집하기</button>
+      <button onclick="수동추가열기()">🔗 광고 추가</button>
       <button onclick="설정열기()">⚙ 설정</button>
     </div>
   </header>
@@ -651,6 +663,10 @@
       <input type="date" id="종료일_까지" onchange="필터적용()">
     </label>
 
+    <select id="그룹필터" onchange="필터적용()">
+      <option value="전체">그룹: 전체</option>
+    </select>
+
     <button id="그룹토글버튼" onclick="그룹핑토글()">그룹명으로 보기</button>
     <button id="필터초기화버튼" onclick="필터초기화()">필터 초기화</button>
   </div>
@@ -677,6 +693,11 @@
 
       <label for="분석광고주필터">광고주</label>
       <select id="분석광고주필터" onchange="분석렌더링()">
+        <option value="전체">전체</option>
+      </select>
+
+      <label for="분석그룹필터">그룹</label>
+      <select id="분석그룹필터" onchange="분석렌더링()">
         <option value="전체">전체</option>
       </select>
     </div>
@@ -819,6 +840,30 @@
     </div>
   </div>
 
+  <!-- 광고 직접 추가 팝업 -->
+  <div id="수동추가팝업" class="모달">
+    <div class="모달내용">
+      <button class="닫기버튼" onclick="팝업닫기('수동추가팝업')">&times;</button>
+      <h2>광고 직접 추가</h2>
+      <div class="안내">
+        Meta 광고 라이브러리의 광고 상세 링크
+        (예: https://www.facebook.com/ads/library/?id=1234567890123456)
+        또는 라이브러리 ID 숫자를 입력하세요. 등록한 항목은 다음 수집 실행 시
+        자동으로 조회되어 추가됩니다.
+      </div>
+      <div class="필드그룹">
+        <label>광고 링크 또는 라이브러리 ID</label>
+        <input type="text" id="수동추가입력" placeholder="https://www.facebook.com/ads/library/?id=...">
+      </div>
+      <div>
+        <button id="수동추가버튼" onclick="수동추가제출()">추가 요청</button>
+        <span id="수동추가상태"></span>
+      </div>
+      <h3>요청 내역</h3>
+      <div id="수동추가목록"></div>
+    </div>
+  </div>
+
   <script src="https://www.gstatic.com/charts/loader.js"></script>
   <script>
     var 전체데이터 = [];
@@ -863,6 +908,32 @@
         });
       });
       return 맵;
+    }
+
+    // 전체데이터에 등장하는 광고주가 속한 그룹명 목록(설정에 등록된 그룹 중 실제 데이터가 있는 것만)을 반환한다.
+    function 존재그룹목록() {
+      var 그룹맵 = 광고주그룹맵();
+      var 존재 = {};
+      전체데이터.forEach(function (행) {
+        var 그룹명 = 그룹맵[행.광고주];
+        if (그룹명) 존재[그룹명] = true;
+      });
+      return Object.keys(설정값.광고주그룹 || {}).filter(function (g) { return 존재[g]; });
+    }
+
+    // 그룹 필터 셀렉트(엘리먼트id)의 옵션을 존재그룹목록 기준으로 채운다.
+    function 그룹필터옵션채우기(엘리먼트id, 기본옵션텍스트) {
+      var 셀렉트 = document.getElementById(엘리먼트id);
+      var 현재값 = 셀렉트.value || "전체";
+      var 그룹목록 = 존재그룹목록();
+      셀렉트.innerHTML = '<option value="전체">' + 기본옵션텍스트 + '</option>';
+      그룹목록.forEach(function (이름) {
+        var 옵션 = document.createElement("option");
+        옵션.value = 이름;
+        옵션.textContent = 이름;
+        셀렉트.appendChild(옵션);
+      });
+      셀렉트.value = 그룹목록.indexOf(현재값) !== -1 ? 현재값 : "전체";
     }
 
     // 그룹핑적용 여부에 따라 각 행의 표시용 광고주명(__표시광고주)을 갱신하고,
@@ -1009,6 +1080,8 @@
         다중선택패널채우기(키, 옵션맵[키]);
         다중선택버튼갱신(키);
       });
+
+      그룹필터옵션채우기("그룹필터", "그룹: 전체");
     }
 
     function 다중선택패널채우기(키, 목록) {
@@ -1097,6 +1170,7 @@
       document.getElementById("구분필터").value = "전체";
       document.getElementById("상태필터").value = "전체";
       document.getElementById("운영일수필터").value = "0";
+      document.getElementById("그룹필터").value = "전체";
       ["시작일_부터", "시작일_까지", "종료일_부터", "종료일_까지"].forEach(function (id) {
         document.getElementById(id).value = "";
       });
@@ -1112,10 +1186,13 @@
       var 시작일_까지 = document.getElementById("시작일_까지").value;
       var 종료일_부터 = document.getElementById("종료일_부터").value;
       var 종료일_까지 = document.getElementById("종료일_까지").value;
+      var 그룹선택 = document.getElementById("그룹필터").value;
 
       var 광고주카테고리 = 광고주카테고리맵();
+      var 그룹맵 = 광고주그룹맵();
 
       var 결과 = 전체데이터.filter(function (행) {
+        if (그룹선택 !== "전체" && 그룹맵[행.광고주] !== 그룹선택) return false;
         if (다중선택상태.카테고리.length && 다중선택상태.카테고리.indexOf(광고주카테고리[행.광고주]) === -1) return false;
         if (다중선택상태.광고주.length && 다중선택상태.광고주.indexOf(행.__표시광고주 || 행.광고주) === -1) return false;
         if (다중선택상태.소재유형.length && 다중선택상태.소재유형.indexOf(행.소재유형) === -1) return false;
@@ -1355,6 +1432,75 @@
           저장상태.textContent = "저장 실패: " + 오류.message;
         })
         .광고_수정(선택된ad_id, 소재유형, 보종, 후킹);
+    }
+
+    // "광고 직접 추가" 팝업을 열고, 입력칸/상태를 초기화하고 요청 내역을 불러온다.
+    function 수동추가열기() {
+      document.getElementById("수동추가입력").value = "";
+      document.getElementById("수동추가상태").textContent = "";
+      수동추가목록갱신();
+      팝업열기("수동추가팝업");
+    }
+
+    // 입력한 광고 라이브러리 링크/ID를 "수동추가" 시트에 등록한다.
+    function 수동추가제출() {
+      var 입력 = document.getElementById("수동추가입력").value.trim();
+      var 상태 = document.getElementById("수동추가상태");
+      if (!입력) {
+        상태.style.color = "#d93025";
+        상태.textContent = "광고 링크 또는 라이브러리 ID를 입력하세요.";
+        return;
+      }
+
+      var 버튼 = document.getElementById("수동추가버튼");
+      버튼.disabled = true;
+      상태.style.color = "";
+      상태.textContent = "등록 중...";
+
+      google.script.run
+        .withSuccessHandler(function (결과) {
+          버튼.disabled = false;
+          if (결과 && 결과.success) {
+            상태.style.color = "#1e8e3e";
+            상태.textContent = "등록되었습니다. 다음 수집 실행 시 자동으로 추가됩니다.";
+            document.getElementById("수동추가입력").value = "";
+            수동추가목록갱신();
+          } else {
+            상태.style.color = "#d93025";
+            상태.textContent = "등록 실패: " + (결과 && 결과.error ? 결과.error : "알 수 없는 오류");
+          }
+        })
+        .withFailureHandler(function (오류) {
+          버튼.disabled = false;
+          상태.style.color = "#d93025";
+          상태.textContent = "등록 실패: " + 오류.message;
+        })
+        .수동추가_등록(입력);
+    }
+
+    // "수동추가" 시트의 최근 요청 내역을 불러와 목록으로 보여준다.
+    function 수동추가목록갱신() {
+      var 목록 = document.getElementById("수동추가목록");
+      목록.textContent = "불러오는 중...";
+      google.script.run
+        .withSuccessHandler(function (행들) {
+          목록.innerHTML = "";
+          if (!행들 || !행들.length) {
+            목록.textContent = "요청 내역이 없습니다.";
+            return;
+          }
+          행들.forEach(function (행) {
+            var 줄 = document.createElement("div");
+            줄.className = "수동추가행";
+            var 메모 = 행.메모 ? " - " + 행.메모 : "";
+            줄.textContent = "[" + 행.상태 + "] " + 행.요청URL + 메모 + " (" + 행.요청일시 + ")";
+            목록.appendChild(줄);
+          });
+        })
+        .withFailureHandler(function (오류) {
+          목록.textContent = "불러오기 실패: " + 오류.message;
+        })
+        .수동추가_목록_가져오기();
     }
 
     function 설정열기() {
@@ -1723,6 +1869,7 @@
       카테고리셀렉트.value = 카테고리목록.indexOf(현재카테고리) !== -1 ? 현재카테고리 : "전체";
 
       분석광고주옵션채우기();
+      그룹필터옵션채우기("분석그룹필터", "전체");
     }
 
     // 분석탭 카테고리 선택이 바뀌면, 광고주 선택지를 해당 카테고리 소속으로 다시 채운다.
@@ -1759,12 +1906,15 @@
     function 분석데이터계산() {
       var 카테고리 = document.getElementById("분석카테고리필터").value;
       var 광고주 = document.getElementById("분석광고주필터").value;
+      var 그룹선택 = document.getElementById("분석그룹필터").value;
       var 카테고리맵 = 광고주카테고리맵();
+      var 그룹맵 = 광고주그룹맵();
 
       return 전체데이터.filter(function (행) {
         if (행.__구분 === "자사") return true;
         if (카테고리 !== "전체" && 카테고리맵[행.광고주] !== 카테고리) return false;
         if (광고주 !== "전체" && 행.광고주 !== 광고주) return false;
+        if (그룹선택 !== "전체" && 그룹맵[행.광고주] !== 그룹선택) return false;
         return true;
       });
     }

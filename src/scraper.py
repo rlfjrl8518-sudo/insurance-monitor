@@ -164,6 +164,52 @@ def 이미지_확장자_추출(이미지_url):
     return ".jpg"
 
 
+def 라이브러리ID_추출(url_또는_id):
+    """Meta 광고 라이브러리 링크 또는 라이브러리 ID 문자열에서 ID(숫자)를 추출한다.
+
+    `?id=`/`&id=` 형태의 URL이거나 숫자로만 된 문자열이 아니면 None을 반환한다.
+    """
+    문자열 = url_또는_id.strip()
+    m = re.search(r"[?&]id=(\d+)", 문자열)
+    if m:
+        return m.group(1)
+    if 문자열.isdigit():
+        return 문자열
+    return None
+
+
+def 광고_상세_조회(page, library_id, 설정, 진행_콜백=print):
+    """라이브러리 ID로 광고 상세 페이지(`?id=`)를 열어 해당 카드 정보를 조회한다.
+
+    상세 페이지에는 같은 페이지(광고주)의 다른 광고들도 함께 노출되므로,
+    JS_카드_추출 결과 중 library_id가 일치하는 카드를 찾아 반환한다.
+    찾지 못하면 None을 반환한다.
+    """
+    url = f"{광고라이브러리_기본URL}?id={library_id}&country={설정['scraping']['country']}"
+    진행_콜백(f"  상세 페이지 이동: {url}")
+    page.goto(url, wait_until="domcontentloaded")
+    page.wait_for_timeout(int(설정["scraping"]["page_load_wait_seconds"] * 1000))
+
+    for 카드 in page.evaluate(JS_카드_추출):
+        if not 카드.get("imageUrl"):
+            continue
+
+        해당_id, 시작일, 광고텍스트 = 카드_텍스트_파싱(카드["text"], 카드["pageName"])
+        if 해당_id != library_id:
+            continue
+
+        return {
+            "라이브러리ID": library_id,
+            "광고주": 카드["pageName"].strip(),
+            "이미지URL": 카드["imageUrl"],
+            "광고텍스트": 광고텍스트,
+            "광고시작일": 시작일 or "",
+            "광고상세URL": f"{광고라이브러리_기본URL}?id={library_id}",
+        }
+
+    return None
+
+
 def 이미지_다운로드(page, 이미지_url, 저장_경로):
     """Playwright의 요청 컨텍스트로 이미지를 내려받아 저장한다."""
     응답 = page.context.request.get(이미지_url)

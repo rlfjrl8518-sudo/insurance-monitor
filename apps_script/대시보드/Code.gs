@@ -18,6 +18,19 @@
 var 시트이름_데이터 = "광고모니터링";
 var 시트이름_설정 = "설정";
 var 시트이름_광고주그룹 = "광고주그룹";
+var 시트이름_수동추가 = "수동추가";
+
+// "수동추가" 시트 컬럼 (src/sheets_sync.py와 동일한 순서 유지)
+var 수동추가_컬럼 = ["요청URL", "library_id", "상태", "요청일시", "처리일시", "메모"];
+
+// 광고 라이브러리 링크/ID에서 숫자로만 된 라이브러리 ID를 추출한다.
+function 라이브러리ID_추출(입력) {
+  var 문자열 = String(입력 || "").trim();
+  var m = 문자열.match(/[?&]id=(\d+)/);
+  if (m) return m[1];
+  if (/^\d+$/.test(문자열)) return 문자열;
+  return null;
+}
 
 // "설정" 시트에서 고정된 의미를 갖는 컬럼 (나머지 컬럼은 모두 광고주 카테고리로 취급)
 var 고정_분류_컬럼 = ["소재유형", "보종", "후킹", "자사"];
@@ -253,4 +266,56 @@ function 광고주그룹_저장(광고주그룹) {
   }
 
   sheet.getRange(1, 1, 데이터.length, 그룹명목록.length).setValues(데이터);
+}
+
+/** "수동추가" 시트를 가져오거나, 없으면 헤더와 함께 새로 만든다. */
+function 수동추가_시트_가져오기() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName(시트이름_수동추가);
+
+  if (!sheet) {
+    sheet = ss.insertSheet(시트이름_수동추가);
+    sheet.appendRow(수동추가_컬럼);
+  }
+
+  return sheet;
+}
+
+/** 입력한 광고 라이브러리 링크/ID를 "수동추가" 시트에 "대기" 상태로 등록한다.
+ *
+ * main.py가 다음 수집 실행 시 "대기" 상태인 행을 읽어 해당 광고 상세 페이지를
+ * 조회하고, 결과를 ads.csv에 추가한 뒤 이 시트의 상태를 갱신한다.
+ */
+function 수동추가_등록(입력) {
+  var library_id = 라이브러리ID_추출(입력);
+  if (!library_id) {
+    return { success: false, error: "광고 링크 또는 라이브러리 ID를 확인할 수 없습니다." };
+  }
+
+  var sheet = 수동추가_시트_가져오기();
+  var 지금 = Utilities.formatDate(new Date(), "GMT+9", "yyyy-MM-dd HH:mm");
+  sheet.appendRow([입력, library_id, "대기", 지금, "", ""]);
+
+  return { success: true };
+}
+
+/** "수동추가" 시트의 최근 요청 내역(최대 20건, 최신순)을 반환한다. */
+function 수동추가_목록_가져오기() {
+  var sheet = 수동추가_시트_가져오기();
+  var 값 = sheet.getDataRange().getValues();
+  if (값.length < 2) return [];
+
+  var 헤더 = 값[0];
+  var 결과 = [];
+
+  for (var i = 값.length - 1; i >= 1; i--) {
+    var 행 = {};
+    for (var j = 0; j < 헤더.length; j++) {
+      행[헤더[j]] = 셀값_변환(값[i][j]);
+    }
+    결과.push(행);
+    if (결과.length >= 20) break;
+  }
+
+  return 결과;
 }
