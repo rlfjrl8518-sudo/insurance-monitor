@@ -183,12 +183,15 @@ def 광고주_광고_수집(page, 광고주명, 설정, 진행_콜백=print):
     스크롤_횟수 = 설정["scraping"]["scroll_count"]
     스크롤_대기 = int(설정["scraping"]["scroll_wait_seconds"] * 1000)
 
+    # 화면 밖으로 벗어난 카드는 이미지가 지연 로딩 해제되어 imageUrl을 잃어버릴 수
+    # 있으므로, 스크롤이 끝난 뒤 한 번만 추출하지 않고 스크롤마다 누적 추출한다.
+    원본_카드_목록 = list(page.evaluate(JS_카드_추출))
     for i in range(스크롤_횟수):
         page.mouse.wheel(0, 4000)
         page.wait_for_timeout(스크롤_대기)
+        원본_카드_목록.extend(page.evaluate(JS_카드_추출))
 
-    원본_카드_목록 = page.evaluate(JS_카드_추출)
-    진행_콜백(f"  추출된 원본 카드 수: {len(원본_카드_목록)}")
+    진행_콜백(f"  추출된 원본 카드 수: {len(원본_카드_목록)} (스크롤 단계별 누적, 중복 포함)")
 
     결과 = []
     수집된_library_id = set()
