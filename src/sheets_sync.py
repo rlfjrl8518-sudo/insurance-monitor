@@ -400,8 +400,15 @@ def 수동추가_대기목록_가져오기(gc, 설정):
     대기목록 = []
     for 행번호, 행 in enumerate(값[1:], start=2):
         if len(행) > 상태_열 and 행[상태_열] == "대기":
-            library_id = 행[library_id_열] if len(행) > library_id_열 else ""
+            library_id = str(행[library_id_열]).strip() if len(행) > library_id_열 else ""
             if library_id:
+                # Google Sheets가 큰 숫자를 지수 표기법(1.52097E+15)으로 자동 변환한 경우 처리
+                if "E" in library_id.upper() or ("." in library_id and not library_id.isdigit()):
+                    try:
+                        library_id = str(int(float(library_id)))
+                        print(f"  [경고] 행 {행번호}: library_id가 지수 표기법으로 저장됨 → {library_id}로 복원 (정밀도 손실 가능)")
+                    except (ValueError, OverflowError):
+                        pass
                 대기목록.append((행번호, library_id))
 
     return 워크시트, 대기목록

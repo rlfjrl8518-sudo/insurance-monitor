@@ -276,6 +276,8 @@ function 수동추가_시트_가져오기() {
   if (!sheet) {
     sheet = ss.insertSheet(시트이름_수동추가);
     sheet.appendRow(수동추가_컬럼);
+    // library_id(B열)를 텍스트 형식으로 설정 - 큰 숫자가 지수 표기법으로 변환되는 것 방지
+    sheet.getRange("B:B").setNumberFormat("@");
   }
 
   return sheet;
@@ -293,6 +295,8 @@ function 수동추가_등록(입력) {
   }
 
   var sheet = 수동추가_시트_가져오기();
+  // appendRow 전에 B열을 텍스트 형식으로 설정해야 새 행도 텍스트로 저장됨
+  sheet.getRange("B:B").setNumberFormat("@");
   var 지금 = Utilities.formatDate(new Date(), "GMT+9", "yyyy-MM-dd HH:mm");
   sheet.appendRow([입력, library_id, "대기", 지금, "", ""]);
 
