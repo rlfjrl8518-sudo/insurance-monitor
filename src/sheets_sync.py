@@ -409,10 +409,17 @@ def 수동추가_대기목록_가져오기(gc, 설정):
 
 def 수동추가_상태_갱신(워크시트, 행번호, 상태, 메모=""):
     """'수동추가' 시트의 한 행의 상태/처리일시/메모를 갱신한다."""
-    헤더 = 워크시트.row_values(1)
-    처리일시 = datetime.now(KST).strftime("%Y-%m-%d %H:%M")
+    try:
+        헤더 = 워크시트.row_values(1)
+        처리일시 = datetime.now(KST).strftime("%Y-%m-%d %H:%M")
 
-    워크시트.update_cell(행번호, 헤더.index("상태") + 1, 상태)
-    워크시트.update_cell(행번호, 헤더.index("처리일시") + 1, 처리일시)
-    if 메모:
-        워크시트.update_cell(행번호, 헤더.index("메모") + 1, 메모)
+        갱신 = [
+            {"range": gspread.utils.rowcol_to_a1(행번호, 헤더.index("상태") + 1), "values": [[상태]]},
+            {"range": gspread.utils.rowcol_to_a1(행번호, 헤더.index("처리일시") + 1), "values": [[처리일시]]},
+        ]
+        if 메모:
+            갱신.append({"range": gspread.utils.rowcol_to_a1(행번호, 헤더.index("메모") + 1), "values": [[메모[:100]]]})
+
+        워크시트.batch_update(갱신)
+    except Exception as e:
+        print(f"  [경고] 수동추가 상태 갱신 실패 (행 {행번호}, 상태={상태}): {e}")
