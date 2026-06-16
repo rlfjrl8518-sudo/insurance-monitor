@@ -333,6 +333,44 @@ function doPost(e) {
         .setMimeType(ContentService.MimeType.JSON);
     }
 
+    if (params.action === "batch_write") {
+      var 시트이름 = String(params.sheetName || "");
+      var ss = SpreadsheetApp.getActiveSpreadsheet();
+      var sheet = ss.getSheetByName(시트이름);
+      if (!sheet) {
+        return ContentService.createTextOutput(JSON.stringify({ error: "시트 없음: " + 시트이름 }))
+          .setMimeType(ContentService.MimeType.JSON);
+      }
+
+      // 1. 셀 값 갱신 [{range: "A1", values: [[v]]}]
+      var updates = params.updates || [];
+      for (var i = 0; i < updates.length; i++) {
+        var u = updates[i];
+        if (u.range && u.values) {
+          sheet.getRange(u.range).setValues(u.values);
+        }
+      }
+
+      // 2. 행 삭제 (내림차순 행번호 배열)
+      var deleteRows = params.deleteRows || [];
+      for (var i = 0; i < deleteRows.length; i++) {
+        sheet.deleteRow(deleteRows[i]);
+      }
+
+      // 3. 행 추가
+      var appendRows = params.appendRows || [];
+      for (var i = 0; i < appendRows.length; i++) {
+        sheet.appendRow(appendRows[i]);
+      }
+
+      return ContentService.createTextOutput(JSON.stringify({
+        success: true,
+        updated: updates.length,
+        deleted: deleteRows.length,
+        appended: appendRows.length
+      })).setMimeType(ContentService.MimeType.JSON);
+    }
+
     return ContentService.createTextOutput(JSON.stringify({ error: "알 수 없는 action: " + params.action }))
       .setMimeType(ContentService.MimeType.JSON);
   } catch (err) {

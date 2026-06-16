@@ -53,6 +53,7 @@ jobs:
           GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
           DRIVE_UPLOAD_WEBAPP_URL: ${{ secrets.DRIVE_UPLOAD_WEBAPP_URL }}
           DRIVE_UPLOAD_SECRET: ${{ secrets.DRIVE_UPLOAD_SECRET }}
+          DASHBOARD_WEBAPP_URL: ${{ secrets.DASHBOARD_WEBAPP_URL }}
         run: python sync_sheets.py | tee sync.log
 
       - name: 실행 로그 업로드
