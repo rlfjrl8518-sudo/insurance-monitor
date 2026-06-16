@@ -31,6 +31,8 @@ def 수동추가_처리(page, 설정, 서비스계정_경로, 전체_데이터, 
         with open(서비스계정_경로, encoding="utf-8") as _f:
             _sa = json.load(_f)
         print(f"\n  [수동추가] 서비스 계정: {_sa.get('client_email', '알 수 없음')}")
+        대시보드_url = 설정.get("google_sheets", {}).get("dashboard_webapp_url", "(없음)")
+        print(f"  [수동추가] 대시보드 웹앱 URL: {대시보드_url[:60]}..." if len(대시보드_url) > 60 else f"  [수동추가] 대시보드 웹앱 URL: {대시보드_url}")
 
         gc = 구글_인증(서비스계정_경로)
         워크시트, 대기목록 = 수동추가_대기목록_가져오기(gc, 설정)
