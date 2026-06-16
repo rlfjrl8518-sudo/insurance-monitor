@@ -414,8 +414,39 @@ def 수동추가_대기목록_가져오기(gc, 설정):
     return 워크시트, 대기목록
 
 
-def 수동추가_상태_갱신(워크시트, 행번호, 상태, 메모=""):
-    """'수동추가' 시트의 한 행의 상태/처리일시/메모를 갱신한다."""
+def 수동추가_상태_갱신(워크시트, 행번호, 상태, 메모="", 설정=None):
+    """'수동추가' 시트의 한 행의 상태/처리일시/메모를 갱신한다.
+
+    dashboard_webapp_url이 설정된 경우 Apps Script 웹앱 POST로 갱신한다.
+    (서비스 계정 403 권한 오류를 우회하기 위해 스프레드시트 소유자 권한으로 실행)
+    미설정이거나 POST가 실패하면 gspread API를 직접 사용한다.
+    """
+    웹앱_url = ""
+    if 설정:
+        웹앱_url = 설정.get("google_sheets", {}).get("dashboard_webapp_url", "")
+
+    if 웹앱_url and "여기에_" not in 웹앱_url:
+        try:
+            요청_본문 = json.dumps({
+                "action": "update_manual_status",
+                "row": 행번호,
+                "status": 상태,
+                "memo": 메모[:100] if 메모 else "",
+            }).encode("utf-8")
+            요청 = urllib.request.Request(
+                웹앱_url,
+                data=요청_본문,
+                headers={"Content-Type": "application/json"},
+                method="POST",
+            )
+            with urllib.request.urlopen(요청, timeout=30) as 응답:
+                결과 = json.loads(응답.read().decode("utf-8"))
+            if "error" not in 결과:
+                return
+            print(f"  [경고] 웹앱 상태 갱신 실패: {결과.get('error')} - gspread로 재시도")
+        except Exception as e:
+            print(f"  [경고] 웹앱 상태 갱신 실패: {e} - gspread로 재시도")
+
     try:
         헤더 = 워크시트.row_values(1)
         처리일시 = datetime.now(KST).strftime("%Y-%m-%d %H:%M")

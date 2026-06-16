@@ -20,7 +20,8 @@
     "service_account_file": "service_account.json",
     "worksheet_name": "광고모니터링",
     "drive_upload_webapp_url": "여기에_DRIVE_UPLOAD_WEBAPP_URL_입력",
-    "drive_upload_secret": "여기에_DRIVE_UPLOAD_SECRET_입력"
+    "drive_upload_secret": "여기에_DRIVE_UPLOAD_SECRET_입력",
+    "dashboard_webapp_url": "여기에_DASHBOARD_WEBAPP_URL_입력"
   },
   "scraping": {
     "country": "KR",

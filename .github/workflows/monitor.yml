@@ -35,6 +35,7 @@ jobs:
         env:
           GOOGLE_SHEETS_ID: ${{ secrets.GOOGLE_SHEETS_ID }}
           GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          DASHBOARD_WEBAPP_URL: ${{ secrets.DASHBOARD_WEBAPP_URL }}
         run: python main.py | tee collect.log
 
       - name: 2단계 - Gemini AI 분류

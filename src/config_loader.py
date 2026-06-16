@@ -64,6 +64,10 @@ def 설정_불러오기(설정_경로=기본_설정_경로):
     if 업로드_비밀키:
         설정["google_sheets"]["drive_upload_secret"] = _BOM_제거(업로드_비밀키)
 
+    대시보드_웹앱_url = os.environ.get("DASHBOARD_WEBAPP_URL")
+    if 대시보드_웹앱_url:
+        설정["google_sheets"]["dashboard_webapp_url"] = _BOM_제거(대시보드_웹앱_url)
+
     # 구글 서비스 계정 JSON: 환경 변수에 JSON 전체 내용이 들어있으면 파일로 저장
     서비스계정_json = os.environ.get("GOOGLE_SERVICE_ACCOUNT_JSON")
     if 서비스계정_json:

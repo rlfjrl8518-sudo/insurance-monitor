@@ -303,6 +303,44 @@ function 수동추가_등록(입력) {
   return { success: true };
 }
 
+/** HTTP POST 요청을 처리한다 (Python에서 수동추가 상태 갱신 시 사용).
+ *
+ * 요청 형식: {"action": "update_manual_status", "row": 행번호, "status": "완료|실패", "memo": "..."}
+ * Apps Script가 스프레드시트 소유자 권한으로 실행되므로 서비스 계정 권한 문제를 우회한다.
+ */
+function doPost(e) {
+  try {
+    var params = JSON.parse(e.postData.contents);
+
+    if (params.action === "update_manual_status") {
+      var 행번호 = parseInt(params.row);
+      var 상태 = String(params.status || "");
+      var 메모 = String(params.memo || "").substring(0, 100);
+
+      var sheet = 수동추가_시트_가져오기();
+      var 헤더 = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+      var 지금 = Utilities.formatDate(new Date(), "GMT+9", "yyyy-MM-dd HH:mm");
+
+      var 상태_열 = 헤더.indexOf("상태") + 1;
+      var 처리일시_열 = 헤더.indexOf("처리일시") + 1;
+      var 메모_열 = 헤더.indexOf("메모") + 1;
+
+      if (상태_열 > 0) sheet.getRange(행번호, 상태_열).setValue(상태);
+      if (처리일시_열 > 0) sheet.getRange(행번호, 처리일시_열).setValue(지금);
+      if (메모_열 > 0 && 메모) sheet.getRange(행번호, 메모_열).setValue(메모);
+
+      return ContentService.createTextOutput(JSON.stringify({ success: true }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
+    return ContentService.createTextOutput(JSON.stringify({ error: "알 수 없는 action: " + params.action }))
+      .setMimeType(ContentService.MimeType.JSON);
+  } catch (err) {
+    return ContentService.createTextOutput(JSON.stringify({ error: err.toString() }))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+}
+
 /** "수동추가" 시트의 최근 요청 내역(최대 20건, 최신순)을 반환한다. */
 function 수동추가_목록_가져오기() {
   var sheet = 수동추가_시트_가져오기();
