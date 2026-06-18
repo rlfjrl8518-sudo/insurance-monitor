@@ -444,6 +444,47 @@
       color: var(--text-light);
       margin-bottom: 14px;
     }
+    .ai설정섹션 {
+      background: #f8f9fa;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 14px;
+      margin-bottom: 8px;
+    }
+    .ai프로바이더선택 {
+      display: flex;
+      gap: 20px;
+      margin-bottom: 14px;
+    }
+    .ai프로바이더선택 label {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 14px;
+      cursor: pointer;
+      font-weight: 500;
+    }
+    .ai프로바이더선택 input[type="radio"] {
+      accent-color: var(--accent);
+      width: 16px;
+      height: 16px;
+    }
+    .ai키섹션 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+    .ai키섹션 .필드그룹 label { font-size: 12px; color: var(--text-light); }
+    .ai키섹션 input {
+      width: 100%;
+      padding: 7px 10px;
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      font-size: 13px;
+      font-family: monospace;
+    }
+    #AI설정저장상태 { font-size: 12px; margin-left: 10px; }
     #수동추가목록 {
       font-size: 12px;
       color: var(--text-light);
@@ -644,23 +685,19 @@
     </select>
 
     <select id="운영일수필터" onchange="필터적용()">
-      <option value="0">운영일수: 전체</option>
-      <option value="7">7일 이상</option>
-      <option value="30">30일 이상</option>
-      <option value="60">60일 이상</option>
+      <option value="">운영일수: 전체</option>
+      <option value="lte10">10일 이내</option>
+      <option value="lte30">30일 이내</option>
+      <option value="lte60">60일 이내</option>
+      <option value="gt60">60일 초과</option>
     </select>
 
     <span class="구분"></span>
 
-    <label>시작일
-      <input type="date" id="시작일_부터" onchange="필터적용()">
+    <label>기간
+      <input type="date" id="기간_부터" onchange="필터적용()">
       ~
-      <input type="date" id="시작일_까지" onchange="필터적용()">
-    </label>
-    <label>종료일
-      <input type="date" id="종료일_부터" onchange="필터적용()">
-      ~
-      <input type="date" id="종료일_까지" onchange="필터적용()">
+      <input type="date" id="기간_까지" onchange="필터적용()">
     </label>
 
     <select id="그룹필터" onchange="필터적용()">
@@ -818,6 +855,39 @@
         선택하지 않으면 기존 수집 결과의 구분을 그대로 사용합니다.
       </div>
       <div id="자사설정목록" class="그룹블록"></div>
+      <h3>AI 분류 설정</h3>
+      <div class="안내">
+        광고 소재 자동 분류에 사용할 AI를 선택하고 API 키를 입력하세요.
+        저장 후 다음 분류 실행부터 적용됩니다. 양쪽 키를 모두 입력해두면 프로바이더만 바꿔서 전환할 수 있습니다.
+      </div>
+      <div class="ai설정섹션">
+        <div class="ai프로바이더선택">
+          <label><input type="radio" name="ai_provider" value="gemini"> Gemini (Google)</label>
+          <label><input type="radio" name="ai_provider" value="openai"> OpenAI</label>
+        </div>
+        <div class="ai키섹션">
+          <div class="필드그룹">
+            <label>Gemini API Key</label>
+            <input type="password" id="gemini_api_key" placeholder="AIza...">
+          </div>
+          <div class="필드그룹">
+            <label>Gemini 모델</label>
+            <input type="text" id="gemini_model" placeholder="gemini-2.5-flash">
+          </div>
+          <div class="필드그룹">
+            <label>OpenAI API Key</label>
+            <input type="password" id="openai_api_key" placeholder="sk-...">
+          </div>
+          <div class="필드그룹">
+            <label>OpenAI 모델</label>
+            <input type="text" id="openai_model" placeholder="gpt-4o">
+          </div>
+        </div>
+        <div>
+          <button id="AI설정저장버튼" onclick="AI설정저장()">AI 설정 저장</button>
+          <span id="AI설정저장상태"></span>
+        </div>
+      </div>
       <h3>분류 항목</h3>
       <div class="설정그리드">
         <div class="필드그룹">
@@ -868,6 +938,7 @@
   <script>
     var 전체데이터 = [];
     var 설정값 = { 카테고리: {}, 소재유형: [], 보종: [], 후킹: [], 자사: [], 광고주그룹: {} };
+    var ai설정값 = { ai_provider: "gemini", gemini_api_key: "", gemini_model: "gemini-2.5-flash", openai_api_key: "", openai_model: "gpt-4o" };
     var 선택된ad_id = null;
     var 그룹핑적용 = false;
     var 다중선택상태 = { 카테고리: [], 광고주: [], 소재유형: [], 보종: [], 후킹: [] };
@@ -1169,9 +1240,9 @@
       필터옵션채우기();
       document.getElementById("구분필터").value = "전체";
       document.getElementById("상태필터").value = "전체";
-      document.getElementById("운영일수필터").value = "0";
+      document.getElementById("운영일수필터").value = "";
       document.getElementById("그룹필터").value = "전체";
-      ["시작일_부터", "시작일_까지", "종료일_부터", "종료일_까지"].forEach(function (id) {
+      ["기간_부터", "기간_까지"].forEach(function (id) {
         document.getElementById(id).value = "";
       });
       필터적용();
@@ -1181,11 +1252,9 @@
       var 검색어 = document.getElementById("검색입력").value.trim().toLowerCase();
       var 구분 = document.getElementById("구분필터").value;
       var 상태 = document.getElementById("상태필터").value;
-      var 운영일수기준 = parseInt(document.getElementById("운영일수필터").value, 10) || 0;
-      var 시작일_부터 = document.getElementById("시작일_부터").value;
-      var 시작일_까지 = document.getElementById("시작일_까지").value;
-      var 종료일_부터 = document.getElementById("종료일_부터").value;
-      var 종료일_까지 = document.getElementById("종료일_까지").value;
+      var 운영일수필터값 = document.getElementById("운영일수필터").value;
+      var 기간_부터 = document.getElementById("기간_부터").value;
+      var 기간_까지 = document.getElementById("기간_까지").value;
       var 그룹선택 = document.getElementById("그룹필터").value;
 
       var 광고주카테고리 = 광고주카테고리맵();
@@ -1200,12 +1269,23 @@
         if (다중선택상태.후킹.length && 다중선택상태.후킹.indexOf(행.후킹) === -1) return false;
         if (구분 !== "전체" && 행.__구분 !== 구분) return false;
         if (상태 !== "전체" && 행.상태 !== 상태) return false;
-        if (운영일수기준 && Number(행.운영일수 || 0) < 운영일수기준) return false;
+        if (운영일수필터값) {
+          var 일수 = Number(행.운영일수 || 0);
+          if (운영일수필터값 === "lte10" && 일수 > 10) return false;
+          if (운영일수필터값 === "lte30" && 일수 > 30) return false;
+          if (운영일수필터값 === "lte60" && 일수 > 60) return false;
+          if (운영일수필터값 === "gt60" && 일수 <= 60) return false;
+        }
 
-        if (시작일_부터 && (!행.광고시작일 || 행.광고시작일 < 시작일_부터)) return false;
-        if (시작일_까지 && (!행.광고시작일 || 행.광고시작일 > 시작일_까지)) return false;
-        if (종료일_부터 && (!행.광고종료일 || 행.광고종료일 < 종료일_부터)) return false;
-        if (종료일_까지 && (!행.광고종료일 || 행.광고종료일 > 종료일_까지)) return false;
+        // 기간 필터: 지정 기간 내에 운영된 소재 (광고 기간이 필터 기간과 겹치는 경우)
+        if (기간_부터 || 기간_까지) {
+          var 시작 = 행.광고시작일 || "";
+          var 종료 = 행.광고종료일 || "";
+          // 광고 종료일이 기간 시작 이전이면 제외
+          if (기간_부터 && 종료 && 종료 < 기간_부터) return false;
+          // 광고 시작일이 기간 종료 이후이면 제외
+          if (기간_까지 && 시작 && 시작 > 기간_까지) return false;
+        }
 
         if (검색어) {
           var 텍스트 = ((행.광고텍스트 || "") + " " + (행.광고주 || "")).toLowerCase();
@@ -1368,7 +1448,6 @@
 
     function 수집실행() {
       window.open("https://github.com/rlfjrl8518-sudo/insurance-monitor/actions/workflows/monitor.yml", "_blank");
-      alert("GitHub Actions 페이지가 열렸습니다.\n초록색 'Run workflow' 버튼을 클릭해야 수집이 시작됩니다.");
     }
 
     function 분류셀렉트채우기(엘리먼트id, 목록, 현재값) {
@@ -1512,7 +1591,72 @@
       document.getElementById("설정_보종").value = (설정값.보종 || []).join("\n");
       document.getElementById("설정_후킹").value = (설정값.후킹 || []).join("\n");
       document.getElementById("설정저장상태").textContent = "";
+
+      // AI 설정 로드
+      google.script.run
+        .withSuccessHandler(function (설정) {
+          ai설정값 = 설정;
+          AI설정_렌더링();
+        })
+        .withFailureHandler(function () {
+          AI설정_렌더링();
+        })
+        .AI설정_가져오기();
+
       팝업열기("설정팝업");
+    }
+
+    function AI설정_렌더링() {
+      var 설정 = ai설정값;
+      document.querySelectorAll("[name='ai_provider']").forEach(function (r) {
+        r.checked = r.value === (설정.ai_provider || "gemini");
+      });
+      document.getElementById("gemini_api_key").value = 설정.gemini_api_key || "";
+      document.getElementById("gemini_model").value = 설정.gemini_model || "gemini-2.5-flash";
+      document.getElementById("openai_api_key").value = 설정.openai_api_key || "";
+      document.getElementById("openai_model").value = 설정.openai_model || "gpt-4o";
+      document.getElementById("AI설정저장상태").textContent = "";
+    }
+
+    function AI설정저장() {
+      var 선택된프로바이더 = document.querySelector("[name='ai_provider']:checked");
+      if (!선택된프로바이더) {
+        alert("AI 프로바이더를 선택해주세요.");
+        return;
+      }
+
+      var 저장할설정 = {
+        ai_provider: 선택된프로바이더.value,
+        gemini_api_key: document.getElementById("gemini_api_key").value.trim(),
+        gemini_model: document.getElementById("gemini_model").value.trim() || "gemini-2.5-flash",
+        openai_api_key: document.getElementById("openai_api_key").value.trim(),
+        openai_model: document.getElementById("openai_model").value.trim() || "gpt-4o"
+      };
+
+      var 버튼 = document.getElementById("AI설정저장버튼");
+      var 상태 = document.getElementById("AI설정저장상태");
+      버튼.disabled = true;
+      상태.style.color = "#888";
+      상태.textContent = "저장 중...";
+
+      google.script.run
+        .withSuccessHandler(function (결과) {
+          버튼.disabled = false;
+          if (결과 && 결과.success) {
+            ai설정값 = 저장할설정;
+            상태.style.color = "#1e8e3e";
+            상태.textContent = "저장되었습니다.";
+          } else {
+            상태.style.color = "#d93025";
+            상태.textContent = "저장 실패: " + (결과 && 결과.error ? 결과.error : "알 수 없는 오류");
+          }
+        })
+        .withFailureHandler(function (오류) {
+          버튼.disabled = false;
+          상태.style.color = "#d93025";
+          상태.textContent = "저장 실패: " + 오류.message;
+        })
+        .AI설정_저장(저장할설정);
     }
 
     function 카테고리설정목록렌더링(카테고리맵) {

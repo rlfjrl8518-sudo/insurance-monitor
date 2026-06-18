@@ -153,6 +153,28 @@ def 설정_시트_읽기(gc, 설정):
     return 결과
 
 
+def AI설정_시트_읽기(gc, 설정):
+    """'AI설정' 워크시트에서 AI 프로바이더/API키/모델 설정을 읽어온다.
+
+    시트가 없거나 읽기 실패 시 빈 딕셔너리를 반환한다.
+    """
+    try:
+        스프레드시트 = gc.open_by_key(설정["google_sheets"]["spreadsheet_id"])
+        워크시트 = 스프레드시트.worksheet("AI설정")
+        값 = 워크시트.get_all_values()
+
+        ai설정 = {}
+        for 행 in 값[1:]:  # 첫 행은 헤더(키/값)
+            if len(행) >= 2 and 행[0]:
+                ai설정[행[0]] = 행[1]
+        return ai설정
+    except gspread.WorksheetNotFound:
+        return {}
+    except Exception as e:
+        print(f"'AI설정' 시트를 읽지 못했습니다: {e}")
+        return {}
+
+
 def 설정_동적_적용(설정, 서비스계정_경로):
     """'설정' 시트에 입력된 광고주 카테고리/소재유형/후킹 목록이 있으면 설정값을 덮어쓴다.
 
@@ -185,6 +207,19 @@ def 설정_동적_적용(설정, 서비스계정_경로):
         설정["classification"]["소재유형"] = 시트설정["소재유형"]
     if 시트설정["후킹"]:
         설정["classification"]["후킹"] = 시트설정["후킹"]
+
+    # 'AI설정' 시트에서 AI 프로바이더/API키 적용 (환경 변수가 있으면 환경 변수 우선)
+    ai설정 = AI설정_시트_읽기(gc, 설정)
+    if ai설정.get("ai_provider") and not os.environ.get("AI_PROVIDER"):
+        설정["ai_provider"] = ai설정["ai_provider"]
+    if ai설정.get("gemini_api_key") and not os.environ.get("GEMINI_API_KEY"):
+        설정["gemini"]["api_key"] = ai설정["gemini_api_key"]
+    if ai설정.get("gemini_model"):
+        설정["gemini"]["model"] = ai설정["gemini_model"]
+    if ai설정.get("openai_api_key") and not os.environ.get("OPENAI_API_KEY"):
+        설정.setdefault("openai", {})["api_key"] = ai설정["openai_api_key"]
+    if ai설정.get("openai_model"):
+        설정.setdefault("openai", {})["model"] = ai설정["openai_model"]
 
     return 설정
 

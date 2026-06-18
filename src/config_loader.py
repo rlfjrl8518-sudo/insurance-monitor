@@ -42,10 +42,20 @@ def 설정_불러오기(설정_경로=기본_설정_경로):
     with open(설정_경로, "r", encoding="utf-8") as f:
         설정 = json.load(f)
 
+    # AI 프로바이더: 환경 변수(AI_PROVIDER)가 있으면 우선 사용
+    ai_provider = os.environ.get("AI_PROVIDER")
+    if ai_provider:
+        설정["ai_provider"] = _BOM_제거(ai_provider)
+
     # Gemini API 키: 환경 변수(GEMINI_API_KEY)가 있으면 우선 사용
     gemini_키 = os.environ.get("GEMINI_API_KEY")
     if gemini_키:
         설정["gemini"]["api_key"] = _BOM_제거(gemini_키)
+
+    # OpenAI API 키: 환경 변수(OPENAI_API_KEY)가 있으면 우선 사용
+    openai_키 = os.environ.get("OPENAI_API_KEY")
+    if openai_키:
+        설정.setdefault("openai", {})["api_key"] = _BOM_제거(openai_키)
 
     # 구글 시트/드라이브 ID: 환경 변수가 있으면 우선 사용
     시트_id = os.environ.get("GOOGLE_SHEETS_ID")

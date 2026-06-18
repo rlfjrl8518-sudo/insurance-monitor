@@ -10,9 +10,14 @@
     "보종": ["여성보험", "태아보험", "간병인보험", "주택화재", "골프플랜", "보장분석", "어린이보험", "암보험", "운전자보험", "치아보험", "펫보험", "자동차보험", "여행보험", "종합보험"],
     "후킹": ["경제적 혜택", "상품 가치", "가입 유도", "감성 소구", "위험 환기", "브랜드 신뢰"]
   },
+  "ai_provider": "gemini",
   "gemini": {
     "api_key": "여기에_GEMINI_API_KEY_입력",
     "model": "gemini-2.5-flash"
+  },
+  "openai": {
+    "api_key": "여기에_OPENAI_API_KEY_입력",
+    "model": "gpt-4o"
   },
   "google_sheets": {
     "spreadsheet_id": "여기에_GOOGLE_SHEETS_ID_입력",

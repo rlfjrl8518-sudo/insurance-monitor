@@ -19,6 +19,7 @@ var 시트이름_데이터 = "광고모니터링";
 var 시트이름_설정 = "설정";
 var 시트이름_광고주그룹 = "광고주그룹";
 var 시트이름_수동추가 = "수동추가";
+var 시트이름_AI설정 = "AI설정";
 
 // "수동추가" 시트 컬럼 (src/sheets_sync.py와 동일한 순서 유지)
 var 수동추가_컬럼 = ["요청URL", "library_id", "상태", "요청일시", "처리일시", "메모"];
@@ -266,6 +267,58 @@ function 광고주그룹_저장(광고주그룹) {
   }
 
   sheet.getRange(1, 1, 데이터.length, 그룹명목록.length).setValues(데이터);
+}
+
+/** "AI설정" 시트에서 AI 프로바이더/API키/모델 설정을 읽어온다. */
+function AI설정_가져오기() {
+  var 기본값 = {
+    ai_provider: "gemini",
+    gemini_api_key: "",
+    gemini_model: "gemini-2.5-flash",
+    openai_api_key: "",
+    openai_model: "gpt-4o"
+  };
+
+  var sheet = 시트_가져오기(시트이름_AI설정);
+  if (!sheet) return 기본값;
+
+  var 값 = sheet.getDataRange().getValues();
+  var 시트값 = {};
+  for (var i = 1; i < 값.length; i++) {  // 첫 행은 헤더
+    if (값[i][0]) 시트값[String(값[i][0])] = String(값[i][1] || "");
+  }
+
+  return {
+    ai_provider: 시트값.ai_provider || 기본값.ai_provider,
+    gemini_api_key: 시트값.gemini_api_key || 기본값.gemini_api_key,
+    gemini_model: 시트값.gemini_model || 기본값.gemini_model,
+    openai_api_key: 시트값.openai_api_key || 기본값.openai_api_key,
+    openai_model: 시트값.openai_model || 기본값.openai_model
+  };
+}
+
+/** "AI설정" 시트에 AI 프로바이더/API키/모델 설정을 저장한다. */
+function AI설정_저장(설정) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName(시트이름_AI설정);
+
+  if (!sheet) {
+    sheet = ss.insertSheet(시트이름_AI설정);
+  } else {
+    sheet.clear();
+  }
+
+  var 데이터 = [
+    ["키", "값"],
+    ["ai_provider", 설정.ai_provider || "gemini"],
+    ["gemini_api_key", 설정.gemini_api_key || ""],
+    ["gemini_model", 설정.gemini_model || "gemini-2.5-flash"],
+    ["openai_api_key", 설정.openai_api_key || ""],
+    ["openai_model", 설정.openai_model || "gpt-4o"]
+  ];
+
+  sheet.getRange(1, 1, 데이터.length, 2).setValues(데이터);
+  return { success: true };
 }
 
 /** "수동추가" 시트를 가져오거나, 없으면 헤더와 함께 새로 만든다. */

@@ -1,4 +1,4 @@
-"""Gemini API로 광고 이미지+텍스트를 분석해 소재유형/보종/후킹/요약으로 분류하는 모듈."""
+"""Gemini 또는 OpenAI API로 광고 이미지+텍스트를 분석해 소재유형/보종/후킹/요약으로 분류하는 모듈."""
 
 import json
 
@@ -123,18 +123,8 @@ import google.generativeai as genai
 }
 
 
-def Gemini_모델_생성(설정):
-    """config.json의 Gemini 설정으로 GenerativeModel 인스턴스를 생성한다.
-
-    gRPC 전송 시 API 키 자격증명 플러그인이 "Illegal header value" 오류와 함께
-    응답 없이 재시도를 반복하는 경우가 있어, REST 전송을 사용해 이를 회피한다.
-    """
-    genai.configure(api_key=설정["gemini"]["api_key"], transport="rest")
-    return genai.GenerativeModel(설정["gemini"]["model"])
-
-
 def 분류_프롬프트_생성(광고주, 광고텍스트, 설정):
-    """config.json의 분류 기준을 반영한 Gemini 프롬프트를 생성한다."""
+    """config.json의 분류 기준을 반영한 AI 프롬프트를 생성한다."""
     분류기준 = 설정["classification"]
     소재유형_목록 = " or ".join(분류기준["소재유형"])
     보종_목록 = " or ".join(분류기준["보종"])
@@ -188,11 +178,38 @@ def 분류_프롬프트_생성(광고주, 광고텍스트, 설정):
 """
 
 
-def 광고_분류(model, 이미지_경로, 광고주, 광고텍스트, 설정):
-    """이미지 파일과 광고 텍스트를 Gemini에 전달하여 분류 결과(dict)를 반환한다.
+def _분류결과_검증(결과, 설정):
+    """분류 결과가 허용 목록에 없는 경우 마지막 항목으로 대체한다."""
+    분류기준 = 설정["classification"]
+    if 결과.get("소재유형") not in 분류기준["소재유형"]:
+        결과["소재유형"] = 분류기준["소재유형"][-1]
+    if 결과.get("보종") not in 분류기준["보종"]:
+        결과["보종"] = 분류기준["보종"][-1]
+    if 결과.get("후킹") not in 분류기준["후킹"]:
+        결과["후킹"] = 분류기준["후킹"][-1]
+    결과["요약"] = 결과.get("요약", "")
+    return 결과
 
-    실패 시 None을 반환한다.
-    """
+
+def 모델_생성(설정):
+    """설정에 지정된 AI 프로바이더에 맞는 모델/클라이언트 인스턴스를 생성한다."""
+    provider = 설정.get("ai_provider", "gemini")
+    if provider == "openai":
+        from openai import OpenAI
+        return OpenAI(api_key=설정["openai"]["api_key"])
+    else:
+        # gRPC 전송 시 "Illegal header value" 오류가 발생하는 경우가 있어 REST 전송을 사용한다.
+        genai.configure(api_key=설정["gemini"]["api_key"], transport="rest")
+        return genai.GenerativeModel(설정["gemini"]["model"])
+
+
+# 하위 호환성 유지용 별칭
+def Gemini_모델_생성(설정):
+    genai.configure(api_key=설정["gemini"]["api_key"], transport="rest")
+    return genai.GenerativeModel(설정["gemini"]["model"])
+
+
+def _Gemini_분류(model, 이미지_경로, 광고주, 광고텍스트, 설정):
     확장자 = "." + 이미지_경로.rsplit(".", 1)[-1].lower()
     mime_type = 확장자별_MIME.get(확장자, "image/jpeg")
 
@@ -208,19 +225,52 @@ def 광고_분류(model, 이미지_경로, 광고주, 광고텍스트, 설정):
         ],
         generation_config={"response_mime_type": "application/json"},
         # gemini-2.5-flash는 추론(thinking) 과정으로 응답이 길어질 수 있어 충분히 여유를 둔다.
-        # 할당량 초과(429) 등 오류 시 SDK가 과도하게 재시도하는 것은 이 타임아웃으로 제한된다.
         request_options={"timeout": 60},
     )
 
     결과 = json.loads(응답.text)
+    return _분류결과_검증(결과, 설정)
 
-    분류기준 = 설정["classification"]
-    if 결과.get("소재유형") not in 분류기준["소재유형"]:
-        결과["소재유형"] = 분류기준["소재유형"][-1]
-    if 결과.get("보종") not in 분류기준["보종"]:
-        결과["보종"] = 분류기준["보종"][-1]
-    if 결과.get("후킹") not in 분류기준["후킹"]:
-        결과["후킹"] = 분류기준["후킹"][-1]
-    결과["요약"] = 결과.get("요약", "")
 
-    return 결과
+def _OpenAI_분류(client, 이미지_경로, 광고주, 광고텍스트, 설정):
+    import base64
+
+    확장자 = "." + 이미지_경로.rsplit(".", 1)[-1].lower()
+    mime_type = 확장자별_MIME.get(확장자, "image/jpeg")
+
+    with open(이미지_경로, "rb") as f:
+        이미지_base64 = base64.b64encode(f.read()).decode()
+
+    프롬프트 = 분류_프롬프트_생성(광고주, 광고텍스트, 설정)
+
+    응답 = client.chat.completions.create(
+        model=설정["openai"]["model"],
+        messages=[{
+            "role": "user",
+            "content": [
+                {
+                    "type": "image_url",
+                    "image_url": {"url": f"data:{mime_type};base64,{이미지_base64}"}
+                },
+                {"type": "text", "text": 프롬프트}
+            ]
+        }],
+        response_format={"type": "json_object"},
+        timeout=60,
+    )
+
+    결과 = json.loads(응답.choices[0].message.content)
+    return _분류결과_검증(결과, 설정)
+
+
+def 광고_분류(client, 이미지_경로, 광고주, 광고텍스트, 설정):
+    """이미지 파일과 광고 텍스트를 AI에 전달하여 분류 결과(dict)를 반환한다.
+
+    설정의 ai_provider에 따라 Gemini 또는 OpenAI를 사용한다.
+    실패 시 예외를 발생시킨다.
+    """
+    provider = 설정.get("ai_provider", "gemini")
+    if provider == "openai":
+        return _OpenAI_분류(client, 이미지_경로, 광고주, 광고텍스트, 설정)
+    else:
+        return _Gemini_분류(client, 이미지_경로, 광고주, 광고텍스트, 설정)
