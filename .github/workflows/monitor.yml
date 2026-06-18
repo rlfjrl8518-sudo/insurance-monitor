@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       skip_classification:
-        description: "Gemini AI 분류(2단계) 건너뛰기"
+        description: "AI 분류(2단계) 건너뛰기"
         type: boolean
         default: false
 
@@ -38,7 +38,7 @@ jobs:
           DASHBOARD_WEBAPP_URL: ${{ secrets.DASHBOARD_WEBAPP_URL }}
         run: python main.py | tee collect.log
 
-      - name: 2단계 - Gemini AI 분류
+      - name: 2단계 - AI 분류
         if: ${{ inputs.skip_classification != true }}
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
