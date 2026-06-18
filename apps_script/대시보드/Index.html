@@ -686,10 +686,10 @@
 
     <select id="운영일수필터" onchange="필터적용()">
       <option value="">운영일수: 전체</option>
-      <option value="lte10">10일 이내</option>
-      <option value="lte30">30일 이내</option>
-      <option value="lte60">60일 이내</option>
-      <option value="gt60">60일 초과</option>
+      <option value="1-10">1~10일</option>
+      <option value="11-30">11~30일</option>
+      <option value="31-60">31~60일</option>
+      <option value="61+">61일+</option>
     </select>
 
     <span class="구분"></span>
@@ -1271,10 +1271,10 @@
         if (상태 !== "전체" && 행.상태 !== 상태) return false;
         if (운영일수필터값) {
           var 일수 = Number(행.운영일수 || 0);
-          if (운영일수필터값 === "lte10" && 일수 > 10) return false;
-          if (운영일수필터값 === "lte30" && 일수 > 30) return false;
-          if (운영일수필터값 === "lte60" && 일수 > 60) return false;
-          if (운영일수필터값 === "gt60" && 일수 <= 60) return false;
+          if (운영일수필터값 === "1-10" && (일수 < 1 || 일수 > 10)) return false;
+          if (운영일수필터값 === "11-30" && (일수 < 11 || 일수 > 30)) return false;
+          if (운영일수필터값 === "31-60" && (일수 < 31 || 일수 > 60)) return false;
+          if (운영일수필터값 === "61+" && 일수 < 61) return false;
         }
 
         // 기간 필터: 지정 기간 내에 운영된 소재 (광고 기간이 필터 기간과 겹치는 경우)
