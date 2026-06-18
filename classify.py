@@ -63,9 +63,17 @@ def 실행():
         print("CSV에 데이터가 없습니다. 먼저 main.py로 광고를 수집해주세요.")
         return
 
-    대상_목록 = [행 for 행 in 전체_데이터.values() if not 행.get("소재유형")]
+    미분류_전체 = [행 for 행 in 전체_데이터.values() if not 행.get("소재유형")]
+    대상_목록 = [
+        행 for 행 in 미분류_전체
+        if 행.get("이미지파일명") and os.path.exists(os.path.join(이미지_폴더, 행["이미지파일명"]))
+    ]
+    이미지없음_건수 = len(미분류_전체) - len(대상_목록)
+
     print("=" * 60)
     print(f"AI 분류 시작 [{provider}] - 분류 대상: {len(대상_목록)}건 / 전체: {len(전체_데이터)}건")
+    if 이미지없음_건수:
+        print(f"(이미지 없어 건너뜀: {이미지없음_건수}건 - 종료된 광고 등)")
     print("=" * 60)
 
     if not 대상_목록:
@@ -80,10 +88,6 @@ def 실행():
 
     for i, 행 in enumerate(대상_목록, start=1):
         이미지_경로 = os.path.join(이미지_폴더, 행["이미지파일명"])
-        if not os.path.exists(이미지_경로):
-            print(f"[{i}/{len(대상_목록)}] {행['ad_id']} - 이미지 파일 없음, 건너뜀")
-            실패_개수 += 1
-            continue
 
         try:
             if hasattr(signal, "SIGALRM"):
