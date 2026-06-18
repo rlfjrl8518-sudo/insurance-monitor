@@ -131,13 +131,54 @@
       background: #fff;
       border-bottom: 1px solid var(--border);
       padding: 10px 20px;
+      position: sticky;
+      top: 86px;
+      z-index: 19;
+    }
+    #필터바내용 {
       display: flex;
       flex-wrap: wrap;
       gap: 8px;
       align-items: center;
-      position: sticky;
-      top: 86px;
-      z-index: 19;
+    }
+    #필터바헤더 {
+      display: none;
+    }
+    #필터토글버튼 {
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      padding: 6px 12px;
+      font-size: 12px;
+      cursor: pointer;
+      color: var(--text-light);
+    }
+    @media (max-width: 700px) {
+      #필터바헤더 {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+      #필터바헤더 span { font-size: 13px; font-weight: bold; }
+      #필터바내용 {
+        display: none;
+        margin-top: 10px;
+      }
+      #필터바내용.열림 {
+        display: flex;
+        flex-direction: column;
+        align-items: stretch;
+      }
+      #필터바내용.열림 .구분 { display: none; }
+      #필터바내용.열림 #검색입력 { width: 100%; }
+      #필터바내용.열림 .다중선택버튼,
+      #필터바내용.열림 select,
+      #필터바내용.열림 label,
+      #필터바내용.열림 #그룹토글버튼,
+      #필터바내용.열림 #필터초기화버튼 {
+        width: 100%;
+        max-width: none;
+      }
     }
     #필터바 input, #필터바 select {
       padding: 6px 8px;
@@ -644,6 +685,11 @@
 
   <div id="갤러리탭">
   <div id="필터바">
+    <div id="필터바헤더">
+      <span>필터</span>
+      <button type="button" id="필터토글버튼" onclick="필터바토글()">필터 펼치기 ▼</button>
+    </div>
+    <div id="필터바내용">
     <input type="text" id="검색입력" placeholder="광고 텍스트 / 광고주 검색" oninput="필터적용()">
 
     <span class="구분"></span>
@@ -706,6 +752,7 @@
 
     <button id="그룹토글버튼" onclick="그룹핑토글()">그룹명으로 보기</button>
     <button id="필터초기화버튼" onclick="필터초기화()">필터 초기화</button>
+    </div>
   </div>
 
   <div id="결과정보"></div>
@@ -1230,6 +1277,14 @@
         p.classList.remove("열림");
       });
       if (!열림) 패널.classList.add("열림");
+    }
+
+    // 모바일 화면에서 필터 영역 접기/펼치기 토글 (데스크탑에서는 항상 펼쳐진 상태로 표시됨)
+    function 필터바토글() {
+      var 내용 = document.getElementById("필터바내용");
+      var 버튼 = document.getElementById("필터토글버튼");
+      var 열림 = 내용.classList.toggle("열림");
+      버튼.textContent = 열림 ? "필터 접기 ▲" : "필터 펼치기 ▼";
     }
 
     function 필터초기화() {
