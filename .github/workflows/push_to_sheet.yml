@@ -1,0 +1,44 @@
+name: CSV를 시트에 반영 (AI 호출 없음)
+
+on:
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  push:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: 저장소 체크아웃
+        uses: actions/checkout@v4
+
+      - name: Python 설치
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: 의존성 설치 (gspread만 필요)
+        run: pip install gspread google-auth
+
+      - name: CSV를 시트에 반영
+        env:
+          PYTHONUNBUFFERED: "1"
+          GOOGLE_SHEETS_ID: ${{ secrets.GOOGLE_SHEETS_ID }}
+          GOOGLE_DRIVE_FOLDER_ID: ${{ secrets.GOOGLE_DRIVE_FOLDER_ID }}
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          DRIVE_UPLOAD_WEBAPP_URL: ${{ secrets.DRIVE_UPLOAD_WEBAPP_URL }}
+          DRIVE_UPLOAD_SECRET: ${{ secrets.DRIVE_UPLOAD_SECRET }}
+          DASHBOARD_WEBAPP_URL: ${{ secrets.DASHBOARD_WEBAPP_URL }}
+        run: python push_csv_to_sheet.py | tee push.log
+
+      - name: 실행 로그 업로드
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: 시트반영로그-${{ github.run_number }}
+          path: push.log
+          retention-days: 30
