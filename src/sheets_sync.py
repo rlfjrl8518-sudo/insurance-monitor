@@ -17,6 +17,11 @@ import urllib.request
 import gspread
 from google.oauth2.service_account import Credentials
 
+from src.classifier import (
+    소재유형_분류_규칙 as 기본_소재유형_규칙,
+    보종_분류_규칙 as 기본_보종_규칙,
+    소구포인트_분류_규칙 as 기본_소구포인트_규칙,
+)
 from src.config_loader import 광고주_목록_생성
 from src.csv_store import KST, CSV_쓰기, CSV_읽기
 from src.text_utils import 외국어_소재인가, 채용_소재인가
@@ -58,6 +63,12 @@ from datetime import datetime
 
 # 설정 시트에서 고정된 의미를 갖는 컬럼 (나머지 컬럼은 모두 광고주 카테고리로 취급)
 고정_분류_컬럼 = ["소재유형", "보종", "소구포인트", "자사"]
+
+# AI 분류 규칙(우선순위/키워드 정의) 텍스트를 직접 입력·수정하는 워크시트 이름
+분류규칙_시트이름 = "분류규칙"
+
+# 분류규칙 시트에 값이 있는 축 - classifier.py의 기본 규칙을 시트 값으로 덮어씀
+분류규칙_축_목록 = ["소재유형", "보종", "소구포인트"]
 
 
 def 구글_인증(서비스계정_경로):
@@ -235,15 +246,71 @@ def AI설정_시트_읽기(gc, 설정):
         return {}
 
 
-def 설정_동적_적용(설정, 서비스계정_경로):
-    """'설정' 시트에 입력된 광고주 카테고리/소재유형/소구포인트 목록이 있으면 설정값을 덮어쓴다.
+def 분류규칙_시트_초기화(gc, 설정):
+    """'분류규칙' 워크시트가 없으면 classifier.py에 있는 현재 기본 규칙 텍스트로 새로 만든다.
 
-    대시보드 "설정" 화면에서 이 값들을 바꾸면 다음 수집/분류부터 바로 반영되도록 한다.
-    보종은 분류 규칙(src/classifier.py)이 카테고리별 키워드/우선순위를 코드로
-    정의하고 있어 시트 값으로 덮어쓰지 않는다 (검증용 목록은 config.json 값 유지).
+    이미 존재하면 손대지 않는다 - 사용자가 시트에서 직접 수정한 규칙을 보존하기 위함.
+    """
+    스프레드시트 = gc.open_by_key(설정["google_sheets"]["spreadsheet_id"])
+
+    try:
+        스프레드시트.worksheet(분류규칙_시트이름)
+        return
+    except gspread.WorksheetNotFound:
+        pass
+
+    기본_규칙 = {
+        "소재유형": 기본_소재유형_규칙,
+        "보종": 기본_보종_규칙,
+        "소구포인트": 기본_소구포인트_규칙,
+    }
+    데이터 = [["축", "규칙텍스트"]] + [[축, 기본_규칙[축]] for 축 in 분류규칙_축_목록]
+
+    워크시트 = 스프레드시트.add_worksheet(
+        title=분류규칙_시트이름, rows=len(분류규칙_축_목록) + 1, cols=2
+    )
+    워크시트.update(데이터, "A1")
+    try:
+        워크시트.format("A1:B1", {"textFormat": {"bold": True}})
+        워크시트.format("B2:B4", {"wrapStrategy": "WRAP", "verticalAlignment": "TOP"})
+    except Exception:
+        pass  # 서식 실패는 무시 (규칙 저장 자체는 이미 완료됨)
+
+
+def 분류규칙_시트_읽기(gc, 설정):
+    """'분류규칙' 시트에서 축별 규칙 텍스트를 읽어온다.
+
+    시트가 없거나 비어 있으면 빈 딕셔너리를 반환한다 (호출 측에서 classifier.py
+    기본 규칙으로 자연스럽게 폴백함).
+    """
+    try:
+        스프레드시트 = gc.open_by_key(설정["google_sheets"]["spreadsheet_id"])
+        워크시트 = 스프레드시트.worksheet(분류규칙_시트이름)
+        값 = 워크시트.get_all_values()
+    except gspread.WorksheetNotFound:
+        return {}
+    except Exception as e:
+        print(f"'분류규칙' 시트를 읽지 못해 기본 규칙을 사용합니다: {e}")
+        return {}
+
+    결과 = {}
+    for 행 in 값[1:]:
+        if len(행) >= 2 and 행[0] and 행[1]:
+            결과[행[0]] = 행[1]
+    return 결과
+
+
+def 설정_동적_적용(설정, 서비스계정_경로):
+    """'설정' 시트에 입력된 광고주 카테고리/소재유형/보종/소구포인트 목록과 '분류규칙' 시트에
+    입력된 우선순위·키워드 규칙 텍스트가 있으면 설정값을 덮어쓴다.
+
+    대시보드 "설정" 화면에서 카테고리 값 목록을, "분류규칙" 시트에서 판단 기준(우선순위/
+    키워드/예외) 텍스트를 직접 수정하면 다음 수집/분류부터 바로 반영되도록 한다.
+    단, "분류규칙" 시트에 아직 없는 값(예: 새로 추가한 보종)에 대한 세부 규칙은 자동으로
+    생기지 않으므로, 정확도를 위해서는 규칙 텍스트도 함께 수정하는 것이 좋다.
 
     수집 대상 광고주 목록(advertisers)은 own_company + advertiser_categories를 합쳐 계산한다.
-    시트 접근에 실패하면 config.json 값을 그대로 사용한다.
+    시트 접근에 실패하면 config.json/classifier.py 기본값을 그대로 사용한다.
     """
     설정["advertisers"] = 광고주_목록_생성(설정)
 
@@ -256,6 +323,8 @@ def 설정_동적_적용(설정, 서비스계정_경로):
         gc = 구글_인증(서비스계정_경로)
         설정_시트_초기화(gc, 설정)
         시트설정 = 설정_시트_읽기(gc, 설정)
+        분류규칙_시트_초기화(gc, 설정)
+        설정["classification_rules"] = 분류규칙_시트_읽기(gc, 설정)
     except Exception as e:
         print(f"'설정' 시트를 읽지 못해 config.json 기본값을 사용합니다: {e}")
         return 설정
@@ -265,6 +334,8 @@ def 설정_동적_적용(설정, 서비스계정_경로):
         설정["advertisers"] = 광고주_목록_생성(설정)
     if 시트설정["소재유형"]:
         설정["classification"]["소재유형"] = 시트설정["소재유형"]
+    if 시트설정["보종"]:
+        설정["classification"]["보종"] = 시트설정["보종"]
     if 시트설정["소구포인트"]:
         설정["classification"]["소구포인트"] = 시트설정["소구포인트"]
 
