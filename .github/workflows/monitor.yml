@@ -19,6 +19,13 @@ permissions:
 jobs:
   monitor:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        # 명시적으로 bash를 지정하면 GitHub Actions가 `-eo pipefail`을 적용한다.
+        # 기본 `bash -e {0}`는 pipefail이 없어서 `python x.py | tee log.txt`에서
+        # python이 실패해도 tee의 종료 코드(0)만 보고 스텝이 성공 처리되는 문제가 있었음
+        # (구글시트 동기화 403 에러가 이 때문에 한 달 가까이 "success"로 숨겨져 있었음).
+        shell: bash
     steps:
       - name: 저장소 체크아웃
         uses: actions/checkout@v4
