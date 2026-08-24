@@ -2124,7 +2124,7 @@
       var 기준 = 분석그룹맵핑적용();
       분석필터데이터 = 분석데이터계산();
       var 기준라벨 = 기준 === "카테고리" ? "카테고리별" : (기준 === "그룹" ? "그룹별" : "광고주별");
-      ["차트2제목", "차트3제목", "차트4제목", "차트5제목"].forEach(function (id) {
+      ["차트2제목", "차트3제목", "차트4제목"].forEach(function (id) {
         var el = document.getElementById(id);
         el.textContent = 기준라벨 + " " + el.textContent.replace(/^(?:(?:광고주별|카테고리별|그룹별)\s*)+/, "");
       });
