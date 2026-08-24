@@ -1,0 +1,53 @@
+name: 전체 재분류 (분류 기준 개편)
+
+on:
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  reclassify:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: 저장소 체크아웃
+        uses: actions/checkout@v4
+
+      - name: Python 설치
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: 의존성 설치
+        run: pip install -r requirements.txt
+
+      - name: 전체 재분류 실행
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          GOOGLE_SHEETS_ID: ${{ secrets.GOOGLE_SHEETS_ID }}
+          GOOGLE_DRIVE_FOLDER_ID: ${{ secrets.GOOGLE_DRIVE_FOLDER_ID }}
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          DRIVE_UPLOAD_WEBAPP_URL: ${{ secrets.DRIVE_UPLOAD_WEBAPP_URL }}
+          DRIVE_UPLOAD_SECRET: ${{ secrets.DRIVE_UPLOAD_SECRET }}
+          DASHBOARD_WEBAPP_URL: ${{ secrets.DASHBOARD_WEBAPP_URL }}
+        run: python reclassify_all.py | tee reclassify.log
+
+      - name: 실행 로그 업로드
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: 재분류로그-${{ github.run_number }}
+          path: reclassify.log
+          retention-days: 30
+
+      - name: 변경된 데이터 커밋
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/ads.csv
+          git diff --cached --quiet || git commit -m "전체 재분류: 소재유형/보종/소구포인트/후킹방식"
+          git push
