@@ -80,20 +80,29 @@ def 워크시트_가져오기(gc, 설정):
     if not 기존_헤더:
         worksheet.append_row(시트_컬럼)
     else:
-        # 이전에 만들어진 시트에 새로 추가된 컬럼(예: 광고상세URL)이 없으면 끝에 추가
-        누락_컬럼 = [컬럼 for 컬럼 in 시트_컬럼 if 컬럼 not in 기존_헤더]
-        if 누락_컬럼:
-            worksheet.update([기존_헤더 + 누락_컬럼], "A1")
-
-        # 더 이상 쓰지 않는 예전 컬럼(예: 후킹)이 남아있으면 삭제한다
+        # 더 이상 쓰지 않는 예전 컬럼(예: 후킹)이 남아있으면 먼저 삭제한다
         # (뒤쪽 열부터 지워야 앞쪽 열 삭제로 인한 인덱스 밀림 문제가 없다)
-        현재_헤더 = worksheet.row_values(1)
         폐지_열번호_목록 = sorted(
-            (현재_헤더.index(컬럼) + 1 for 컬럼 in 폐지된_컬럼 if 컬럼 in 현재_헤더),
+            (기존_헤더.index(컬럼) + 1 for 컬럼 in 폐지된_컬럼 if 컬럼 in 기존_헤더),
             reverse=True,
         )
         for 열번호 in 폐지_열번호_목록:
             worksheet.delete_columns(열번호)
+        현재_헤더 = worksheet.row_values(1) if 폐지_열번호_목록 else list(기존_헤더)
+
+        # 새로 추가된 컬럼(예: 소구포인트/후킹방식)은 끝이 아니라 시트_컬럼 순서상
+        # 바로 앞에 오는 기존 컬럼 뒤에 삽입한다 (데이터 정렬을 그대로 유지하기 위해
+        # insert_cols로 열 자체를 끼워넣는다 - 헤더 행만 갈아치우면 기존 행 데이터와 밀림).
+        for i, 컬럼 in enumerate(시트_컬럼):
+            if 컬럼 in 현재_헤더:
+                continue
+            삽입_위치 = 1
+            for 이전_컬럼 in reversed(시트_컬럼[:i]):
+                if 이전_컬럼 in 현재_헤더:
+                    삽입_위치 = 현재_헤더.index(이전_컬럼) + 2
+                    break
+            worksheet.insert_cols([[컬럼]], 삽입_위치)
+            현재_헤더.insert(삽입_위치 - 1, 컬럼)
 
     return worksheet
 
