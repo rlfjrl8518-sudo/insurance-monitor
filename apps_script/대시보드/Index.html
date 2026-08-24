@@ -714,10 +714,6 @@
       <button type="button" class="다중선택버튼" onclick="다중선택토글('소구포인트')">소구포인트: 전체</button>
       <div class="다중선택패널" id="소구포인트필터패널"></div>
     </div>
-    <div class="다중선택" id="후킹방식필터래퍼">
-      <button type="button" class="다중선택버튼" onclick="다중선택토글('후킹방식')">후킹방식: 전체</button>
-      <div class="다중선택패널" id="후킹방식필터패널"></div>
-    </div>
 
     <span class="구분"></span>
 
@@ -818,13 +814,6 @@
         </div>
         <div id="차트4" class="차트"></div>
       </div>
-      <div class="차트박스">
-        <div class="차트박스헤더">
-          <h3 id="차트5제목">후킹방식 비교</h3>
-          <button class="차트다운로드버튼" onclick="차트결과다운로드('차트5')">결과 다운로드</button>
-        </div>
-        <div id="차트5" class="차트"></div>
-      </div>
     </div>
   </div>
 
@@ -855,10 +844,6 @@
           <div class="필드그룹">
             <label>소구포인트</label>
             <select id="상세소구포인트"></select>
-          </div>
-          <div class="필드그룹">
-            <label>후킹방식</label>
-            <select id="상세후킹방식"></select>
           </div>
         </div>
 
@@ -964,10 +949,6 @@
           <label>소구포인트</label>
           <textarea id="설정_소구포인트"></textarea>
         </div>
-        <div class="필드그룹">
-          <label>후킹방식</label>
-          <textarea id="설정_후킹방식"></textarea>
-        </div>
       </div>
       <div>
         <button id="설정저장버튼" onclick="설정저장()">저장</button>
@@ -1003,12 +984,12 @@
   <script src="https://www.gstatic.com/charts/loader.js"></script>
   <script>
     var 전체데이터 = [];
-    var 설정값 = { 카테고리: {}, 소재유형: [], 보종: [], 소구포인트: [], 후킹방식: [], 자사: [], 광고주그룹: {} };
+    var 설정값 = { 카테고리: {}, 소재유형: [], 보종: [], 소구포인트: [], 자사: [], 광고주그룹: {} };
     var ai설정값 = { ai_provider: "gemini", gemini_api_key: "", gemini_model: "gemini-2.5-flash", openai_api_key: "", openai_model: "gpt-4o" };
     var 선택된ad_id = null;
     var 그룹핑적용 = false;
-    var 다중선택상태 = { 카테고리: [], 광고주: [], 소재유형: [], 보종: [], 소구포인트: [], 후킹방식: [] };
-    var 다중선택기본텍스트 = { 카테고리: "카테고리", 광고주: "광고주", 소재유형: "소재유형", 보종: "보종", 소구포인트: "소구포인트", 후킹방식: "후킹방식" };
+    var 다중선택상태 = { 카테고리: [], 광고주: [], 소재유형: [], 보종: [], 소구포인트: [] };
+    var 다중선택기본텍스트 = { 카테고리: "카테고리", 광고주: "광고주", 소재유형: "소재유형", 보종: "보종", 소구포인트: "소구포인트" };
     var 현재탭 = "갤러리탭";
     var 차트로드완료 = false;
     var 분석필터데이터 = [];
@@ -1179,11 +1160,11 @@
     }
 
     // 전체데이터에 실제로 등장하는 값의 집합을 필드명별로 계산한다.
-    // 카테고리필터가 주어지면, 광고주/소재유형/보종/소구포인트/후킹방식은 해당 카테고리에 속한 행만 기준으로 계산한다.
+    // 카테고리필터가 주어지면, 광고주/소재유형/보종/소구포인트는 해당 카테고리에 속한 행만 기준으로 계산한다.
     // (카테고리 자체의 존재값은 항상 전체 데이터 기준으로 계산해 선택지가 줄어들지 않도록 한다.)
     function 존재값집합(카테고리필터) {
       var 카테고리맵 = 광고주카테고리맵();
-      var 결과 = { 카테고리: {}, 광고주: {}, 소재유형: {}, 보종: {}, 소구포인트: {}, 후킹방식: {} };
+      var 결과 = { 카테고리: {}, 광고주: {}, 소재유형: {}, 보종: {}, 소구포인트: {} };
       전체데이터.forEach(function (행) {
         var 행카테고리 = 카테고리맵[행.광고주];
         if (행카테고리) 결과.카테고리[행카테고리] = true;
@@ -1195,7 +1176,6 @@
         if (행.소재유형) 결과.소재유형[행.소재유형] = true;
         if (행.보종) 결과.보종[행.보종] = true;
         if (행.소구포인트) 결과.소구포인트[행.소구포인트] = true;
-        if (행.후킹방식) 결과.후킹방식[행.후킹방식] = true;
       });
       return 결과;
     }
@@ -1208,7 +1188,6 @@
         소재유형: (설정값.소재유형 || []).filter(function (v) { return 존재.소재유형[v]; }),
         보종: (설정값.보종 || []).filter(function (v) { return 존재.보종[v]; }),
         소구포인트: (설정값.소구포인트 || []).filter(function (v) { return 존재.소구포인트[v]; }),
-        후킹방식: (설정값.후킹방식 || []).filter(function (v) { return 존재.후킹방식[v]; }),
       };
 
       Object.keys(옵션맵).forEach(function (키) {
@@ -1343,7 +1322,6 @@
         if (다중선택상태.소재유형.length && 다중선택상태.소재유형.indexOf(행.소재유형) === -1) return false;
         if (다중선택상태.보종.length && 다중선택상태.보종.indexOf(행.보종) === -1) return false;
         if (다중선택상태.소구포인트.length && 다중선택상태.소구포인트.indexOf(행.소구포인트) === -1) return false;
-        if (다중선택상태.후킹방식.length && 다중선택상태.후킹방식.indexOf(행.후킹방식) === -1) return false;
         if (구분 !== "전체" && 행.__구분 !== 구분) return false;
         if (상태 !== "전체" && 행.상태 !== 상태) return false;
         if (운영일수필터값) {
@@ -1454,7 +1432,7 @@
 
       var 태그줄 = document.createElement("div");
       태그줄.className = "태그줄";
-      [행.소재유형, 행.보종, 행.소구포인트, 행.후킹방식].forEach(function (값) {
+      [행.소재유형, 행.보종, 행.소구포인트].forEach(function (값) {
         var 태그 = document.createElement("span");
         태그.className = "태그" + (값 ? "" : " 빈값");
         태그.textContent = 값 || "미분류";
@@ -1504,7 +1482,6 @@
       분류셀렉트채우기("상세소재유형", 설정값.소재유형, 행.소재유형);
       분류셀렉트채우기("상세보종", 설정값.보종, 행.보종);
       분류셀렉트채우기("상세소구포인트", 설정값.소구포인트, 행.소구포인트);
-      분류셀렉트채우기("상세후킹방식", 설정값.후킹방식, 행.후킹방식);
 
       document.getElementById("상세광고텍스트").textContent = 행.광고텍스트 || "(텍스트 없음)";
       document.getElementById("상세요약").textContent = 행.요약 || "(요약 없음)";
@@ -1558,7 +1535,6 @@
       var 소재유형 = document.getElementById("상세소재유형").value;
       var 보종 = document.getElementById("상세보종").value;
       var 소구포인트 = document.getElementById("상세소구포인트").value;
-      var 후킹방식 = document.getElementById("상세후킹방식").value;
 
       var 저장버튼 = document.getElementById("저장버튼");
       var 저장상태 = document.getElementById("저장상태");
@@ -1578,7 +1554,6 @@
               행.소재유형 = 소재유형;
               행.보종 = 보종;
               행.소구포인트 = 소구포인트;
-              행.후킹방식 = 후킹방식;
             }
             필터적용();
           } else {
@@ -1591,7 +1566,7 @@
           저장상태.style.color = "#d93025";
           저장상태.textContent = "저장 실패: " + 오류.message;
         })
-        .광고_수정(선택된ad_id, 소재유형, 보종, 소구포인트, 후킹방식);
+        .광고_수정(선택된ad_id, 소재유형, 보종, 소구포인트);
     }
 
     // "광고 직접 추가" 팝업을 열고, 입력칸/상태를 초기화하고 요청 내역을 불러온다.
@@ -1670,7 +1645,6 @@
       document.getElementById("설정_소재유형").value = (설정값.소재유형 || []).join("\n");
       document.getElementById("설정_보종").value = (설정값.보종 || []).join("\n");
       document.getElementById("설정_소구포인트").value = (설정값.소구포인트 || []).join("\n");
-      document.getElementById("설정_후킹방식").value = (설정값.후킹방식 || []).join("\n");
       document.getElementById("설정저장상태").textContent = "";
 
       // AI 설정 로드
@@ -1936,7 +1910,6 @@
         소재유형: 줄목록("설정_소재유형"),
         보종: 줄목록("설정_보종"),
         소구포인트: 줄목록("설정_소구포인트"),
-        후킹방식: 줄목록("설정_후킹방식"),
         자사: 자사,
         광고주그룹: 광고주그룹,
       };
@@ -2158,7 +2131,6 @@
       차트_소재유형비교();
       차트_보종집중도();
       차트_소구포인트비교();
-      차트_후킹방식비교();
       차트_신규소재빈도();
     }
 
@@ -2230,32 +2202,6 @@
 
       var data = google.visualization.arrayToDataTable([헤더].concat(행들));
       var chart = new google.visualization.ColumnChart(document.getElementById("차트3"));
-      chart.draw(data, {
-        isStacked: "percent",
-        legend: { position: "top" },
-        chartArea: { width: "85%", height: "50%" },
-        hAxis: { slantedText: true, slantedTextAngle: 45, textStyle: { fontSize: 10 } },
-      });
-    }
-
-    // 5. 후킹방식 비교 (광고주별/카테고리별)
-    function 차트_후킹방식비교() {
-      var 기준 = document.getElementById("분석기준").value;
-      var 후킹방식목록 = 분류목록계산(분석필터데이터, "후킹방식", 설정값.후킹방식);
-      var 집계 = 분류집계(분석필터데이터, "__분석그룹", "후킹방식", 설정값.후킹방식);
-      var 광고주목록 = 그룹순서계산(분석필터데이터, "__분석그룹", 분석그룹우선순위(기준));
-
-      var 헤더 = ["광고주"].concat(후킹방식목록);
-      var 행들 = 광고주목록.map(function (광고주) {
-        return [광고주].concat(후킹방식목록.map(function (분류) {
-          return (집계[광고주] && 집계[광고주][분류]) || 0;
-        }));
-      });
-
-      차트데이터.차트5 = { 헤더: 헤더, 행들: 행들 };
-
-      var data = google.visualization.arrayToDataTable([헤더].concat(행들));
-      var chart = new google.visualization.ColumnChart(document.getElementById("차트5"));
       chart.draw(data, {
         isStacked: "percent",
         legend: { position: "top" },
