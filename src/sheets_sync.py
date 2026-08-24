@@ -19,7 +19,7 @@ from google.oauth2.service_account import Credentials
 
 from src.config_loader import 광고주_목록_생성
 from src.csv_store import KST, CSV_쓰기, CSV_읽기
-from src.text_utils import 외국어_소재인가
+from src.text_utils import 외국어_소재인가, 채용_소재인가
 
 from datetime import datetime
 
@@ -288,6 +288,7 @@ def 시트_동기화(설정, csv_경로, 이미지_폴더, 서비스계정_경�
       이미 시트에 있던 행은 삭제한다.
     - 광고 텍스트에 한글이 전혀 없는(외국어) 행은 시트에 추가하지 않고, 이미 시트에
       있던 행은 삭제하며, CSV에서도 함께 제거한다 (필터 적용 전에 수집된 잔여 데이터 정리).
+    - 보험설계사/파트너스 모집, 부업 등 채용성 소재도 같은 방식으로 시트/CSV에서 제외한다.
 
     반환값: (신규_추가_개수, 갱신_개수, 삭제_개수)
     """
@@ -311,6 +312,7 @@ def 시트_동기화(설정, csv_경로, 이미지_폴더, 서비스계정_경�
     갱신_요청 = []
     삭제대상_행번호 = []
     외국어_제거_ad_id_목록 = []
+    채용_제거_ad_id_목록 = []
     신규_개수 = 0
     갱신_개수 = 0
     삭제_개수 = 0
@@ -319,6 +321,10 @@ def 시트_동기화(설정, csv_경로, 이미지_폴더, 서비스계정_경�
         외국어_소재 = 외국어_소재인가(행.get("광고텍스트"))
         if 외국어_소재:
             외국어_제거_ad_id_목록.append(ad_id)
+
+        채용_소재 = 채용_소재인가(행.get("광고텍스트"))
+        if 채용_소재:
+            채용_제거_ad_id_목록.append(ad_id)
 
         if ad_id in 기존_위치:
             행번호 = 기존_위치[ad_id]
@@ -334,7 +340,7 @@ def 시트_동기화(설정, csv_경로, 이미지_폴더, 서비스계정_경�
             if not 최종_이미지url:
                 최종_이미지url = _이미지_업로드_시도(설정, 이미지_폴더, 행, ad_id)
 
-            if 외국어_소재 or not 최종_이미지url:
+            if 외국어_소재 or 채용_소재 or not 최종_이미지url:
                 삭제대상_행번호.append(행번호)
                 삭제_개수 += 1
                 continue
@@ -362,7 +368,7 @@ def 시트_동기화(설정, csv_경로, 이미지_폴더, 서비스계정_경�
 
             갱신_개수 += 1
         else:
-            if 외국어_소재:
+            if 외국어_소재 or 채용_소재:
                 continue
 
             이미지URL = _이미지_업로드_시도(설정, 이미지_폴더, 행, ad_id)
@@ -420,8 +426,9 @@ def 시트_동기화(설정, csv_경로, 이미지_폴더, 서비스계정_경�
         if 새_행_목록:
             worksheet.append_rows(새_행_목록, value_input_option="USER_ENTERED")
 
-    if 외국어_제거_ad_id_목록:
-        for ad_id in 외국어_제거_ad_id_목록:
+    제거_ad_id_목록 = 외국어_제거_ad_id_목록 + 채용_제거_ad_id_목록
+    if 제거_ad_id_목록:
+        for ad_id in 제거_ad_id_목록:
             del 전체_데이터[ad_id]
         CSV_쓰기(csv_경로, 전체_데이터)
 
