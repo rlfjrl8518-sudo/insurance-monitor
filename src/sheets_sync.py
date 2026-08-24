@@ -17,11 +17,6 @@ import urllib.request
 import gspread
 from google.oauth2.service_account import Credentials
 
-from src.classifier import (
-    소재유형_분류_규칙 as 기본_소재유형_규칙,
-    보종_분류_규칙 as 기본_보종_규칙,
-    소구포인트_분류_규칙 as 기본_소구포인트_규칙,
-)
 from src.config_loader import 광고주_목록_생성
 from src.csv_store import KST, CSV_쓰기, CSV_읽기
 from src.text_utils import 외국어_소재인가, 채용_소재인가
@@ -258,6 +253,14 @@ def 분류규칙_시트_초기화(gc, 설정):
         return
     except gspread.WorksheetNotFound:
         pass
+
+    # classifier.py는 google-generativeai/openai에 의존하므로, 시트 동기화만 필요한
+    # 최소 의존성 환경(예: push_to_sheet.yml)이 깨지지 않도록 여기서 지연 import한다.
+    from src.classifier import (
+        소재유형_분류_규칙 as 기본_소재유형_규칙,
+        보종_분류_규칙 as 기본_보종_규칙,
+        소구포인트_분류_규칙 as 기본_소구포인트_규칙,
+    )
 
     기본_규칙 = {
         "소재유형": 기본_소재유형_규칙,

@@ -21,8 +21,8 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: 의존성 설치 (gspread만 필요)
-        run: pip install gspread google-auth
+      - name: 의존성 설치
+        run: pip install -r requirements.txt
 
       - name: 컬럼 순서 정리
         env:

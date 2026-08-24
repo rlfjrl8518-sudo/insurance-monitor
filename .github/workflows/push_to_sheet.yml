@@ -21,8 +21,11 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: 의존성 설치 (gspread만 필요)
-        run: pip install gspread google-auth
+      - name: 의존성 설치
+        # sheets_sync.py가 "분류규칙" 시트 최초 생성 시 classifier.py의 기본 규칙
+        # 텍스트를 지연 import하므로 (google-generativeai 등에 의존), gspread만으로는
+        # 부족해 requirements.txt 전체를 설치한다. AI API를 실제로 호출하지는 않는다.
+        run: pip install -r requirements.txt
 
       - name: CSV를 시트에 반영
         env:
