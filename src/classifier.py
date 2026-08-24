@@ -295,6 +295,12 @@ def _OpenAI_분류(client, 이미지_경로, 광고주, 광고텍스트, 설정)
             ]
         }],
         response_format={"type": "json_object"},
+        # gpt-5 계열 추론 모델은 reasoning_effort를 지정하지 않으면 기본값(medium 이상으로
+        # 추정)으로 매 건마다 불필요하게 긴 추론을 해서 건당 지연/비용이 커진다.
+        # 단순 카테고리 분류라 'low'로 충분하고, max_completion_tokens로 상한을 둬
+        # 추론이 길어져도 한 건이 무한정 오래 걸리지 않게 한다.
+        reasoning_effort="low",
+        max_completion_tokens=800,
         timeout=60,
     )
 
@@ -332,6 +338,8 @@ def _OpenAI_분류_텍스트전용(client, 광고주, 광고텍스트, 설정):
         model=설정["openai"]["model"],
         messages=[{"role": "user", "content": 프롬프트}],
         response_format={"type": "json_object"},
+        reasoning_effort="low",
+        max_completion_tokens=800,
         timeout=60,
     )
     결과 = json.loads(응답.choices[0].message.content)
