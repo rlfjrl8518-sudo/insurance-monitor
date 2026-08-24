@@ -74,7 +74,9 @@ def CSV_쓰기(csv_경로, 전체_데이터):
     os.makedirs(os.path.dirname(csv_경로), exist_ok=True)
 
     with open(csv_경로, "w", encoding="utf-8-sig", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=CSV_컬럼, restval="")
+        # extrasaction="ignore": CSV_컬럼 스키마가 바뀐 뒤에도(예: 컬럼명 변경/폐지) 기존
+        # 파일에서 읽어온 행에 남아있는 예전 컬럼 키 때문에 전체 쓰기가 실패하지 않도록 한다.
+        writer = csv.DictWriter(f, fieldnames=CSV_컬럼, restval="", extrasaction="ignore")
         writer.writeheader()
         for ad_id in sorted(전체_데이터.keys()):
             writer.writerow(전체_데이터[ad_id])
