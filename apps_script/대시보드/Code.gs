@@ -458,8 +458,35 @@ function 분석인사이트_생성(요약) {
       : Gemini_인사이트_호출(apiKey, ai.gemini_model || "gemini-2.5-flash", prompt);
     return { success: true, text: text };
   } catch (err) {
-    return { success: false, error: err.toString() };
+    return { success: false, error: 권한오류_메시지변환(err) };
   }
+}
+
+/** UrlFetchApp 관련 권한 오류(외부 요청 스코프 미승인)를 사용자가 바로 조치할 수 있는 안내문으로 바꾼다.
+ *
+ * 이 스크립트에 UrlFetchApp.fetch(외부 API 호출)를 처음 추가하면, 기존에 배포된 웹앱은
+ * 새 권한(script.external_request)을 아직 승인받지 못한 상태로 남아있을 수 있다.
+ * 이 경우 소유자가 Apps Script 편집기에서 함수를 한 번 직접 실행해 권한 승인 화면을 띄우고,
+ * 승인 후 웹앱을 새 버전으로 재배포해야 웹앱에서도 반영된다.
+ */
+function 권한오류_메시지변환(err) {
+  var 원문 = err && err.toString ? err.toString() : String(err);
+  if (원문.indexOf("external_request") !== -1 || 원문.indexOf("권한이 없습니다") !== -1 || /authorization/i.test(원문)) {
+    return "Apps Script 권한 재승인이 필요합니다. 스크립트 편집기 상단 함수 선택 목록에서 " +
+      "'분석인사이트_권한요청'을 선택해 한 번 실행 → 권한 승인 화면에서 허용 → " +
+      "완료 후 '배포 > 배포 관리'에서 새 버전으로 재배포하면 해결됩니다. (원본 오류: " + 원문 + ")";
+  }
+  return 원문;
+}
+
+/** 외부 API 호출(script.external_request) 권한을 최초 1회 승인받기 위한 트리거용 함수.
+ *
+ * Apps Script 편집기에서 이 함수를 직접 선택해 실행하면 권한 승인 화면이 뜬다.
+ * 승인 후에는 웹앱을 새 버전으로 재배포해야 배포된 웹앱에도 승인 내용이 반영된다.
+ */
+function 분석인사이트_권한요청() {
+  UrlFetchApp.fetch("https://www.google.com", { muteHttpExceptions: true });
+  Logger.log("권한 승인 완료 - 이제 웹앱을 새 버전으로 재배포해주세요.");
 }
 
 /** 인사이트 생성 프롬프트를 만든다. 출력 형식을 고정해 클라이언트에서 파싱하기 쉽게 한다. */
