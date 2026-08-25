@@ -544,9 +544,13 @@ function Gemini_인사이트_호출(apiKey, model, prompt) {
   return text.trim();
 }
 
-/** OpenAI chat/completions REST API를 호출해 생성된 텍스트를 반환한다. 실패 시 예외를 던진다. */
+/** OpenAI chat/completions REST API를 호출해 생성된 텍스트를 반환한다. 실패 시 예외를 던진다.
+ *
+ * gpt-5/o1 계열처럼 최신 모델은 max_tokens 대신 max_completion_tokens를 요구하고,
+ * temperature 커스텀 값 자체를 거부하기도 한다. "Unsupported parameter" 오류가 나면
+ * 해당 파라미터를 제거하고 한 번 더 시도해, 모델별 파라미터 차이를 흡수한다.
+ */
 function OpenAI_인사이트_호출(apiKey, model, prompt) {
-  var url = "https://api.openai.com/v1/chat/completions";
   var payload = {
     model: model,
     messages: [
@@ -554,9 +558,24 @@ function OpenAI_인사이트_호출(apiKey, model, prompt) {
       { role: "user", content: prompt }
     ],
     temperature: 0.4,
-    max_tokens: 1024
+    max_completion_tokens: 1024
   };
 
+  try {
+    return OpenAI_요청보내기(apiKey, payload);
+  } catch (err) {
+    var msg = err.toString();
+    if (/Unsupported parameter/i.test(msg) && /temperature/i.test(msg)) {
+      delete payload.temperature;
+      return OpenAI_요청보내기(apiKey, payload);
+    }
+    throw err;
+  }
+}
+
+/** OpenAI chat/completions에 실제 HTTP 요청을 보내고 응답 텍스트를 반환한다. */
+function OpenAI_요청보내기(apiKey, payload) {
+  var url = "https://api.openai.com/v1/chat/completions";
   var res = UrlFetchApp.fetch(url, {
     method: "post",
     contentType: "application/json",
