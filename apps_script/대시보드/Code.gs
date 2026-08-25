@@ -565,7 +565,9 @@ function OpenAI_인사이트_호출(apiKey, model, prompt) {
     return OpenAI_요청보내기(apiKey, payload);
   } catch (err) {
     var msg = err.toString();
-    if (/Unsupported parameter/i.test(msg) && /temperature/i.test(msg)) {
+    // "Unsupported parameter: 'temperature'..." 형태와 "Unsupported value: 'temperature' does not
+    // support 0.4..." 형태를 모두 잡기 위해 "temperature" + "unsupported"만으로 넓게 판단한다.
+    if (/temperature/i.test(msg) && /unsupported/i.test(msg)) {
       delete payload.temperature;
       return OpenAI_요청보내기(apiKey, payload);
     }
