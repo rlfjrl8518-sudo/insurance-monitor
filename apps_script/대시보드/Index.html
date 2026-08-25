@@ -71,6 +71,17 @@
     }
 
     /* 분석 탭 */
+    #분석탭 {
+      --자사색: #eb6834;
+      --시리즈-1: #2a78d6;
+      --시리즈-2: #1baf7a;
+      --시리즈-3: #eda100;
+      --시리즈-4: #e87ba4;
+      --시리즈-5: #008300;
+      --시리즈-6: #4a3aa7;
+      --시리즈-7: #e34948;
+      --기타색: #a8a7a1;
+    }
     .차트그리드 {
       display: grid;
       grid-template-columns: repeat(2, 1fr);
@@ -82,50 +93,245 @@
       border: 1px solid var(--border);
       border-radius: 10px;
       padding: 14px;
+      position: relative;
     }
+    .차트박스.전체폭 { grid-column: 1 / -1; }
     .차트박스헤더 {
       display: flex;
       align-items: center;
       justify-content: space-between;
       gap: 8px;
       margin-bottom: 8px;
+      flex-wrap: wrap;
     }
     .차트박스헤더 h3 {
       margin: 0;
       font-size: 14px;
     }
-    .차트다운로드버튼 {
-      flex-shrink: 0;
-      padding: 4px 10px;
-      font-size: 12px;
-      border: 1px solid var(--border);
-      border-radius: 6px;
-      background: var(--card-bg);
-      color: var(--text-light);
-      cursor: pointer;
-    }
-    .차트다운로드버튼:hover { background: var(--border); }
+    .헤더우측 { display: flex; align-items: center; gap: 6px; position: relative; }
     .차트 {
       width: 100%;
       height: 380px;
     }
+    .차트큰 { height: 420px; }
+    .차트안내 { font-size: 11px; color: var(--text-light); margin-top: 6px; }
     @media (max-width: 900px) {
       .차트그리드 { grid-template-columns: 1fr; }
+      .차트박스.전체폭 { grid-column: auto; }
     }
-    #분석옵션 {
-      padding: 12px 20px 0;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      font-size: 13px;
+
+    /* 세그먼트 토글 */
+    .세그먼트 { display: flex; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; flex-shrink: 0; }
+    .세그먼트버튼 {
+      border: none;
+      background: #fff;
+      padding: 4px 9px;
+      font-size: 11px;
+      cursor: pointer;
       color: var(--text-light);
     }
-    #분석옵션 select {
+    .세그먼트버튼 + .세그먼트버튼 { border-left: 1px solid var(--border); }
+    .세그먼트버튼.활성 { background: var(--accent); color: #fff; }
+
+    /* 카드 우상단 ⋯ 메뉴 */
+    .카드메뉴버튼 {
+      border: 1px solid var(--border);
+      background: #fff;
+      border-radius: 5px;
+      padding: 3px 8px;
+      font-size: 13px;
+      line-height: 1;
+      cursor: pointer;
+      color: var(--text-light);
+      flex-shrink: 0;
+    }
+    .카드메뉴패널 {
+      display: none;
+      position: absolute;
+      top: 100%;
+      right: 0;
+      margin-top: 4px;
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      box-shadow: 0 4px 14px rgba(0,0,0,0.12);
+      z-index: 25;
+      min-width: 150px;
+      overflow: hidden;
+    }
+    .카드메뉴패널.열림 { display: block; }
+    .카드메뉴패널 button {
+      display: block;
+      width: 100%;
+      text-align: left;
+      border: none;
+      background: #fff;
+      padding: 8px 10px;
+      font-size: 12px;
+      cursor: pointer;
+      color: var(--text);
+    }
+    .카드메뉴패널 button:hover { background: var(--bg); }
+
+    /* KPI 스트립 */
+    .KPI스트립 {
+      display: grid;
+      grid-template-columns: repeat(6, 1fr);
+      gap: 12px;
+    }
+    @media (max-width: 900px) {
+      .KPI스트립 { grid-template-columns: repeat(3, 1fr); }
+    }
+    @media (max-width: 480px) {
+      .KPI스트립 { grid-template-columns: repeat(2, 1fr); }
+    }
+    .KPI타일 {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 12px;
+    }
+    .KPI타일 .KPI라벨 { font-size: 11px; color: var(--text-light); margin-bottom: 4px; }
+    .KPI타일 .KPI값 { font-size: 28px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.15; }
+    .KPI타일 .KPI보조 { font-size: 11px; color: var(--text-light); margin-top: 4px; }
+
+    /* 빈 상태 / 스켈레톤 / 로드 실패 */
+    .차트빈상태, .차트로드실패 {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100%;
+      gap: 8px;
+      color: var(--text-light);
+      font-size: 12px;
+      text-align: center;
+    }
+    .차트빈상태버튼 {
+      border: 1px solid var(--border);
+      background: #fff;
+      border-radius: 5px;
+      padding: 5px 12px;
+      font-size: 12px;
+      cursor: pointer;
+      color: var(--text-light);
+    }
+    .차트스켈레톤 {
+      width: 100%;
+      height: 100%;
+      border-radius: 6px;
+      background: linear-gradient(90deg, var(--border) 25%, #eceef1 37%, var(--border) 63%);
+      background-size: 400% 100%;
+      animation: 분석스켈레톤 1.4s ease infinite;
+    }
+    @keyframes 분석스켈레톤 {
+      0% { background-position: 100% 50%; }
+      100% { background-position: 0 50%; }
+    }
+
+    /* 정보 아이콘 */
+    .정보아이콘 {
+      cursor: help;
+      border-bottom: 1px dotted var(--text-light);
+      color: var(--text-light);
+    }
+
+    /* 드릴다운 배너 (JS가 document.body 최상단에 동적으로 붙인다 - 탭 전환 후에도 보여야 하므로) */
+    #분석드릴다운배너 {
+      display: none;
+      position: fixed;
+      top: 86px;
+      left: 0;
+      right: 0;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      background: #fff3ea;
+      border-bottom: 1px solid var(--accent);
+      color: #7a3b0e;
+      padding: 8px 20px;
+      font-size: 12px;
+      z-index: 200;
+    }
+    #분석드릴다운배너.보임 { display: flex; }
+    #분석드릴다운배너 button {
+      border: 1px solid var(--accent);
+      background: #fff;
+      color: var(--accent);
+      border-radius: 5px;
+      padding: 3px 10px;
+      font-size: 11px;
+      cursor: pointer;
+    }
+
+    /* 분석 필터바 (갤러리 #필터바와 동일 톤, sticky top만 조정) */
+    #분석필터바 {
+      background: #fff;
+      border-bottom: 1px solid var(--border);
+      padding: 10px 20px;
+      position: sticky;
+      top: 86px;
+      z-index: 18;
+    }
+    #분석필터바내용 {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+    }
+    #분석필터바헤더 { display: none; }
+    #분석필터토글버튼 {
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      padding: 6px 12px;
+      font-size: 12px;
+      cursor: pointer;
+      color: var(--text-light);
+    }
+    @media (max-width: 700px) {
+      #분석필터바헤더 { display: flex; align-items: center; justify-content: space-between; }
+      #분석필터바헤더 span { font-size: 13px; font-weight: bold; }
+      #분석필터바내용 { display: none; margin-top: 10px; }
+      #분석필터바내용.열림 { display: flex; flex-direction: column; align-items: stretch; }
+      #분석필터바내용.열림 .구분 { display: none; }
+      #분석필터바내용.열림 .다중선택버튼,
+      #분석필터바내용.열림 select,
+      #분석필터바내용.열림 label,
+      #분석필터바내용.열림 button {
+        width: 100%;
+        max-width: none;
+      }
+    }
+    #분석필터바 input, #분석필터바 select {
       padding: 6px 8px;
       border: 1px solid var(--border);
       border-radius: 5px;
       font-size: 12px;
     }
+    #분석필터바 label {
+      font-size: 12px;
+      color: var(--text-light);
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    #분석필터바 .구분 {
+      width: 1px;
+      height: 22px;
+      background: var(--border);
+      margin: 0 2px;
+    }
+    .기간프리셋버튼, #분석필터초기화버튼, #전체CSV다운로드버튼 {
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      padding: 6px 12px;
+      font-size: 12px;
+      cursor: pointer;
+      color: var(--text-light);
+    }
+    #분석결과정보 { font-size: 12px; color: var(--text-light); }
 
     #필터바 {
       background: #fff;
@@ -762,57 +968,129 @@
 
   <!-- 분석 탭 -->
   <div id="분석탭" style="display:none">
-    <div id="분석옵션">
-      <label for="분석기준">비교 기준</label>
-      <select id="분석기준" onchange="분석렌더링()">
-        <option value="광고주">광고주별</option>
-        <option value="카테고리">카테고리별</option>
-        <option value="그룹">그룹별</option>
-      </select>
+    <div id="분석필터바">
+      <div id="분석필터바헤더">
+        <span>분석 필터</span>
+        <button type="button" id="분석필터토글버튼" onclick="분석필터바토글()">필터 펼치기 ▼</button>
+      </div>
+      <div id="분석필터바내용">
+        <label for="분석기준">기준</label>
+        <select id="분석기준" onchange="분석기준변경()">
+          <option value="그룹">그룹별</option>
+          <option value="카테고리">카테고리별</option>
+        </select>
 
-      <label for="분석카테고리필터">카테고리</label>
-      <select id="분석카테고리필터" onchange="분석카테고리변경()">
-        <option value="전체">전체</option>
-      </select>
+        <label>기간
+          <input type="date" id="분석기간_부터" onchange="분석필터변경()">
+          ~
+          <input type="date" id="분석기간_까지" onchange="분석필터변경()">
+        </label>
+        <button type="button" class="기간프리셋버튼" onclick="분석기간프리셋('30')">최근30일</button>
+        <button type="button" class="기간프리셋버튼" onclick="분석기간프리셋('90')">최근90일</button>
+        <button type="button" class="기간프리셋버튼" onclick="분석기간프리셋('전체')">전체</button>
 
-      <label for="분석광고주필터">광고주</label>
-      <select id="분석광고주필터" onchange="분석렌더링()">
-        <option value="전체">전체</option>
-      </select>
+        <span class="구분"></span>
 
-      <label for="분석그룹필터">그룹</label>
-      <select id="분석그룹필터" onchange="분석렌더링()">
-        <option value="전체">전체</option>
-      </select>
+        <div class="다중선택" id="분석카테고리필터래퍼">
+          <button type="button" class="다중선택버튼" onclick="분석다중선택토글('카테고리')">카테고리: 전체</button>
+          <div class="다중선택패널" id="분석카테고리필터패널"></div>
+        </div>
+        <div class="다중선택" id="분석그룹필터래퍼">
+          <button type="button" class="다중선택버튼" onclick="분석다중선택토글('그룹')">그룹: 전체</button>
+          <div class="다중선택패널" id="분석그룹필터패널"></div>
+        </div>
+
+        <select id="분석상태필터" onchange="분석필터변경()">
+          <option value="전체">상태: 전체</option>
+          <option value="신규">신규만</option>
+          <option value="운영중">운영중만</option>
+          <option value="종료">종료만</option>
+        </select>
+
+        <span class="구분"></span>
+
+        <span id="분석결과정보"></span>
+        <button type="button" id="분석필터초기화버튼" onclick="분석필터초기화()">초기화</button>
+        <button type="button" id="전체CSV다운로드버튼" onclick="전체CSV다운로드()">전체 CSV</button>
+      </div>
     </div>
+
     <div class="차트그리드">
-      <div class="차트박스">
+      <div class="차트박스 전체폭">
         <div class="차트박스헤더">
-          <h3 id="차트1제목">자사 vs 경쟁사 소재유형 비중 비교</h3>
-          <button class="차트다운로드버튼" onclick="차트결과다운로드('차트1')">결과 다운로드</button>
+          <h3>요약 지표</h3>
         </div>
-        <div id="차트1" class="차트"></div>
+        <div class="KPI스트립" id="KPI스트립"></div>
       </div>
-      <div class="차트박스">
+
+      <div class="차트박스 전체폭">
         <div class="차트박스헤더">
-          <h3 id="차트2제목">보종 집중도 비교</h3>
-          <button class="차트다운로드버튼" onclick="차트결과다운로드('차트2')">결과 다운로드</button>
+          <h3 id="차트추이제목" data-기본제목="신규 소재 출시 추이">신규 소재 출시 추이</h3>
+          <div class="헤더우측">
+            <div class="세그먼트" id="추이모드세그먼트">
+              <button type="button" class="세그먼트버튼 활성" data-값="신규" onclick="추이모드변경('신규')">신규 건수</button>
+              <button type="button" class="세그먼트버튼" data-값="누적" onclick="추이모드변경('누적')">누적</button>
+            </div>
+            <button type="button" class="카드메뉴버튼" onclick="카드메뉴토글(this)">⋯</button>
+            <div class="카드메뉴패널"><button type="button" onclick="차트결과다운로드('차트추이')">이 차트 데이터 CSV</button></div>
+          </div>
         </div>
-        <div id="차트2" class="차트"></div>
+        <div id="차트추이" class="차트 차트큰"></div>
+        <div class="차트안내" id="차트추이안내"></div>
       </div>
+
       <div class="차트박스">
         <div class="차트박스헤더">
-          <h3 id="차트3제목">소구포인트 비교</h3>
-          <button class="차트다운로드버튼" onclick="차트결과다운로드('차트3')">결과 다운로드</button>
+          <h3 id="차트히트맵제목" data-기본제목="분류 비중 히트맵">분류 비중 히트맵</h3>
+          <div class="헤더우측">
+            <div class="세그먼트" id="히트맵분류세그먼트">
+              <button type="button" class="세그먼트버튼 활성" data-값="소재유형" onclick="히트맵분류변경('소재유형')">소재유형</button>
+              <button type="button" class="세그먼트버튼" data-값="보종" onclick="히트맵분류변경('보종')">보종</button>
+              <button type="button" class="세그먼트버튼" data-값="소구포인트" onclick="히트맵분류변경('소구포인트')">소구포인트</button>
+            </div>
+            <button type="button" class="카드메뉴버튼" onclick="카드메뉴토글(this)">⋯</button>
+            <div class="카드메뉴패널"><button type="button" onclick="차트결과다운로드('차트히트맵')">이 차트 데이터 CSV</button></div>
+          </div>
         </div>
-        <div id="차트3" class="차트"></div>
+        <div id="차트히트맵" class="차트"></div>
       </div>
+
       <div class="차트박스">
         <div class="차트박스헤더">
-          <h3 id="차트4제목">신규 소재 출시 빈도</h3>
-          <button class="차트다운로드버튼" onclick="차트결과다운로드('차트4')">결과 다운로드</button>
+          <h3 id="차트격차제목" data-기본제목="자사 vs 경쟁 평균 격차">자사 vs 경쟁 평균 격차</h3>
+          <div class="헤더우측">
+            <div class="세그먼트" id="격차분류세그먼트">
+              <button type="button" class="세그먼트버튼 활성" data-값="소재유형" onclick="격차분류변경('소재유형')">소재유형</button>
+              <button type="button" class="세그먼트버튼" data-값="보종" onclick="격차분류변경('보종')">보종</button>
+              <button type="button" class="세그먼트버튼" data-값="소구포인트" onclick="격차분류변경('소구포인트')">소구포인트</button>
+            </div>
+            <button type="button" class="카드메뉴버튼" onclick="카드메뉴토글(this)">⋯</button>
+            <div class="카드메뉴패널"><button type="button" onclick="차트결과다운로드('차트격차')">이 차트 데이터 CSV</button></div>
+          </div>
         </div>
-        <div id="차트4" class="차트"></div>
+        <div id="차트격차" class="차트"></div>
+      </div>
+
+      <div class="차트박스">
+        <div class="차트박스헤더">
+          <h3 id="차트볼륨제목" data-기본제목="그룹별 소재 볼륨·상태 구성">그룹별 소재 볼륨·상태 구성</h3>
+          <div class="헤더우측">
+            <button type="button" class="카드메뉴버튼" onclick="카드메뉴토글(this)">⋯</button>
+            <div class="카드메뉴패널"><button type="button" onclick="차트결과다운로드('차트볼륨')">이 차트 데이터 CSV</button></div>
+          </div>
+        </div>
+        <div id="차트볼륨" class="차트"></div>
+      </div>
+
+      <div class="차트박스">
+        <div class="차트박스헤더">
+          <h3 id="차트운영기간제목" data-기본제목="운영 기간 분포">운영 기간 분포</h3>
+          <div class="헤더우측">
+            <button type="button" class="카드메뉴버튼" onclick="카드메뉴토글(this)">⋯</button>
+            <div class="카드메뉴패널"><button type="button" onclick="차트결과다운로드('차트운영기간')">이 차트 데이터 CSV</button></div>
+          </div>
+        </div>
+        <div id="차트운영기간" class="차트"></div>
       </div>
     </div>
   </div>
@@ -981,7 +1259,7 @@
     </div>
   </div>
 
-  <script src="https://www.gstatic.com/charts/loader.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.1/dist/echarts.min.js"></script>
   <script>
     var 전체데이터 = [];
     var 설정값 = { 카테고리: {}, 소재유형: [], 보종: [], 소구포인트: [], 자사: [], 광고주그룹: {} };
@@ -991,9 +1269,27 @@
     var 다중선택상태 = { 카테고리: [], 광고주: [], 소재유형: [], 보종: [], 소구포인트: [] };
     var 다중선택기본텍스트 = { 카테고리: "카테고리", 광고주: "광고주", 소재유형: "소재유형", 보종: "보종", 소구포인트: "소구포인트" };
     var 현재탭 = "갤러리탭";
+
+    // ===== 분석 탭 전용 상태 =====
     var 차트로드완료 = false;
+    var 차트로드실패 = false;
     var 분석필터데이터 = [];
     var 차트데이터 = {};
+    var 차트인스턴스 = {};
+    var 분석색맵 = {};
+    var 분석색순환키 = ["--시리즈-1", "--시리즈-2", "--시리즈-3", "--시리즈-4", "--시리즈-5", "--시리즈-6", "--시리즈-7"];
+    var 분석다중선택상태 = { 카테고리: [], 그룹: [] };
+    var 분석다중선택기본텍스트 = { 카테고리: "카테고리", 그룹: "그룹" };
+    var 분석히트맵분류 = "소재유형";
+    var 분석격차분류 = "소재유형";
+    var 분석추이모드 = "신규";
+    var 분석운영일수구간 = [
+      { key: "1-10", label: "1~10일", min: 1, max: 10 },
+      { key: "11-30", label: "11~30일", min: 11, max: 30 },
+      { key: "31-60", label: "31~60일", min: 31, max: 60 },
+      { key: "61+", label: "61일+", min: 61, max: Infinity },
+      { key: "미상", label: "미상", min: null, max: null }
+    ];
 
     // 설정값.카테고리에 등록된 모든 광고주를 카테고리 등장 순서대로 합친 목록을 반환한다.
     function 전체광고주목록() {
@@ -1134,11 +1430,13 @@
       return 광고주옵션목록();
     }
 
-    google.charts.load("current", { packages: ["corechart"] });
-    google.charts.setOnLoadCallback(function () {
+    // ECharts는 <script> 태그로 동기 로드되므로 즉시 존재 여부를 확인한다.
+    // CDN 로드 실패(오프라인 등) 시 조용히 죽지 않고 카드에 안내를 띄운다.
+    if (typeof echarts !== "undefined") {
       차트로드완료 = true;
-      if (현재탭 === "분석탭") 분석렌더링();
-    });
+    } else {
+      차트로드실패 = true;
+    }
 
     function 초기화() {
       google.script.run.withSuccessHandler(function (설정) {
@@ -1969,6 +2267,10 @@
 
     /* ===== 분석 탭 ===== */
 
+    var 분석자사그룹집합 = {};
+    var 분석위젯ID목록 = ["차트추이", "차트히트맵", "차트격차", "차트볼륨", "차트운영기간"];
+    var 분석리사이즈타이머 = null;
+
     function 탭전환(탭이름) {
       현재탭 = 탭이름;
       document.querySelectorAll(".탭버튼").forEach(function (b) {
@@ -1976,7 +2278,46 @@
       });
       document.getElementById("갤러리탭").style.display = 탭이름 === "갤러리탭" ? "" : "none";
       document.getElementById("분석탭").style.display = 탭이름 === "분석탭" ? "" : "none";
-      if (탭이름 === "분석탭") 분석렌더링();
+      if (탭이름 === "분석탭") {
+        분석렌더링();
+        // display:none 상태에서 그려진 차트는 폭이 0이므로, 보이게 된 직후 반드시 리사이즈한다.
+        setTimeout(차트전체리사이즈, 0);
+      }
+    }
+
+    window.addEventListener("resize", function () {
+      clearTimeout(분석리사이즈타이머);
+      분석리사이즈타이머 = setTimeout(차트전체리사이즈, 150);
+    });
+
+    function 차트전체리사이즈() {
+      Object.keys(차트인스턴스).forEach(function (id) {
+        var 인스턴스 = 차트인스턴스[id];
+        if (인스턴스 && !인스턴스.isDisposed()) 인스턴스.resize();
+      });
+    }
+
+    // 카드 우상단 ⋯ 메뉴 토글 (분석 탭 전용, 바깥 클릭 시 닫힘)
+    function 카드메뉴토글(버튼) {
+      var 패널 = 버튼.nextElementSibling;
+      var 열림 = 패널.classList.contains("열림");
+      document.querySelectorAll(".카드메뉴패널").forEach(function (p) { p.classList.remove("열림"); });
+      if (!열림) 패널.classList.add("열림");
+    }
+    document.addEventListener("click", function (e) {
+      if (!e.target.closest(".헤더우측")) {
+        document.querySelectorAll(".카드메뉴패널").forEach(function (p) { p.classList.remove("열림"); });
+      }
+    });
+
+    // #분석탭에 선언된 CSS 커스텀 프로퍼티 값을 읽는다 (색상 하드코딩 대신 재사용).
+    function 분석CSS색(변수명) {
+      var 값 = getComputedStyle(document.getElementById("분석탭")).getPropertyValue(변수명);
+      return (값 || "").trim() || "#999999";
+    }
+
+    function 날짜문자열변환(date) {
+      return date.getFullYear() + "-" + String(date.getMonth() + 1).padStart(2, "0") + "-" + String(date.getDate()).padStart(2, "0");
     }
 
     // 분류값이 비어있으면 "미분류", 허용목록에 없는(설정에 정의되지 않은) 값이면 "기타"로 통합한다.
@@ -2010,226 +2351,818 @@
       return 목록;
     }
 
-    // 데이터에 등장하는 그룹값을, 우선순위목록(설정값 순서)을 앞세워 정렬한다.
-    function 그룹순서계산(데이터, 키, 우선순위목록) {
-      var 존재 = {};
+    // 데이터에 등장하는 그룹값(__분석그룹)을 자사 최우선 + 나머지는 건수 내림차순으로 정렬한다.
+    // 반환: { 순서: [...], 카운트: {그룹명: 건수} }
+    function 분석그룹정렬(데이터) {
+      var 카운트 = {};
+      var 순서 = [];
       데이터.forEach(function (행) {
-        존재[행[키] || "(미지정)"] = true;
+        var 값 = 행.__분석그룹 || "(미지정)";
+        if (!카운트[값]) { 카운트[값] = 0; 순서.push(값); }
+        카운트[값]++;
       });
-      var 순서 = (우선순위목록 || []).filter(function (v) { return 존재[v]; });
-      Object.keys(존재).forEach(function (v) {
-        if (순서.indexOf(v) === -1) 순서.push(v);
-      });
-      return 순서;
+      var 자사 = 순서.filter(function (v) { return 분석자사그룹집합[v]; });
+      var 나머지 = 순서.filter(function (v) { return !분석자사그룹집합[v]; });
+      나머지.sort(function (a, b) { return 카운트[b] - 카운트[a]; });
+      return { 순서: 자사.concat(나머지), 카운트: 카운트 };
     }
 
-    // 분석 탭 비교 기준("광고주"/"카테고리"/"그룹")에 따라 각 행에 __분석그룹 필드를 채운다.
+    // 분석 탭 비교 기준("카테고리"/"그룹")에 따라 각 행에 __분석그룹 필드를 채운다.
+    // 화면에 개별 광고주명이 노출되지 않도록, 자사 행도 그룹맵을 우선 적용한다(미매핑 시에만 원본명).
     function 분석그룹맵핑적용() {
       var 기준 = document.getElementById("분석기준").value;
       var 카테고리맵 = 광고주카테고리맵();
       var 그룹맵 = 광고주그룹맵();
       전체데이터.forEach(function (행) {
         if (기준 === "카테고리") {
-          행.__분석그룹 = 행.__구분 === "자사" ? 행.광고주 : (카테고리맵[행.광고주] || "(미분류)");
-        } else if (기준 === "그룹") {
-          행.__분석그룹 = 그룹맵[행.광고주] || 행.광고주;
+          행.__분석그룹 = 행.__구분 === "자사" ? (그룹맵[행.광고주] || 행.광고주) : (카테고리맵[행.광고주] || "(미분류)");
         } else {
-          행.__분석그룹 = 행.광고주;
+          행.__분석그룹 = 그룹맵[행.광고주] || 행.광고주;
         }
       });
       return 기준;
     }
 
-    // 분석 탭 비교 기준에 따른 그룹 표시 순서(자사 -> 카테고리/그룹/광고주 등록 순)를 반환한다.
-    function 분석그룹우선순위(기준) {
-      var 자사목록 = 자사광고주목록();
-      if (기준 === "카테고리") {
-        return 자사목록.concat(Object.keys(설정값.카테고리 || {}));
-      }
-      if (기준 === "그룹") {
-        return 그룹화이름목록();
-      }
-      return 정렬순서계산();
+    // 기준(그룹/카테고리)에 따른 색상 슬롯 맵을 계산한다.
+    // 항상 "전체데이터"(현재 다중선택/기간/상태 필터와 무관) 기준으로 슬롯을 고정해,
+    // 필터로 그룹이 줄어도 남은 그룹의 색이 재배정되지 않도록 한다.
+    function 분석색맵계산(기준) {
+      var 우선순위 = 기준 === "카테고리" ? Object.keys(설정값.카테고리 || {}) : 그룹화이름목록();
+      var 존재 = {};
+      var 순서 = [];
+      전체데이터.forEach(function (행) {
+        var 값 = 행.__분석그룹 || "(미지정)";
+        if (!존재[값]) { 존재[값] = true; 순서.push(값); }
+      });
+      var 정렬순서 = 우선순위.filter(function (v) { return 존재[v]; });
+      순서.forEach(function (v) { if (정렬순서.indexOf(v) === -1) 정렬순서.push(v); });
+
+      분석자사그룹집합 = {};
+      전체데이터.forEach(function (행) {
+        if (행.__구분 === "자사") 분석자사그룹집합[행.__분석그룹] = true;
+      });
+
+      var 맵 = {};
+      var 슬롯 = 0;
+      정렬순서.forEach(function (그룹명) {
+        if (분석자사그룹집합[그룹명]) { 맵[그룹명] = 분석CSS색("--자사색"); return; }
+        if (슬롯 < 분석색순환키.length) {
+          맵[그룹명] = 분석CSS색(분석색순환키[슬롯]);
+          슬롯++;
+        } else {
+          맵[그룹명] = 분석CSS색("--기타색");
+        }
+      });
+      분석색맵 = 맵;
     }
 
-    // 분석탭 "카테고리"/"광고주" 필터 선택지를 데이터에 실제 존재하는 값으로 채운다.
+    // 분석탭 "카테고리"/"그룹" 다중선택 옵션을 데이터에 실제 존재하는 값으로 채운다.
     function 분석옵션채우기() {
       var 존재 = 존재값집합();
       var 카테고리목록 = Object.keys(설정값.카테고리 || {}).filter(function (v) { return 존재.카테고리[v]; });
+      var 그룹목록 = 존재그룹목록();
 
-      var 카테고리셀렉트 = document.getElementById("분석카테고리필터");
-      var 현재카테고리 = 카테고리셀렉트.value || "전체";
-      카테고리셀렉트.innerHTML = '<option value="전체">전체</option>';
-      카테고리목록.forEach(function (이름) {
-        var 옵션 = document.createElement("option");
-        옵션.value = 이름;
-        옵션.textContent = 이름;
-        카테고리셀렉트.appendChild(옵션);
-      });
-      카테고리셀렉트.value = 카테고리목록.indexOf(현재카테고리) !== -1 ? 현재카테고리 : "전체";
+      분석다중선택상태.카테고리 = 분석다중선택상태.카테고리.filter(function (v) { return 카테고리목록.indexOf(v) !== -1; });
+      분석다중선택상태.그룹 = 분석다중선택상태.그룹.filter(function (v) { return 그룹목록.indexOf(v) !== -1; });
 
-      분석광고주옵션채우기();
-      그룹필터옵션채우기("분석그룹필터", "전체");
+      분석다중선택패널채우기("카테고리", 카테고리목록);
+      분석다중선택버튼갱신("카테고리");
+      분석다중선택패널채우기("그룹", 그룹목록);
+      분석다중선택버튼갱신("그룹");
     }
 
-    // 분석탭 카테고리 선택이 바뀌면, 광고주 선택지를 해당 카테고리 소속으로 다시 채운다.
-    function 분석카테고리변경() {
-      document.getElementById("분석광고주필터").value = "전체";
-      분석광고주옵션채우기();
+    function 분석다중선택토글(키) {
+      var 패널 = document.getElementById("분석" + 키 + "필터패널");
+      var 열림 = 패널.classList.contains("열림");
+      document.querySelectorAll(".다중선택패널").forEach(function (p) { p.classList.remove("열림"); });
+      if (!열림) 패널.classList.add("열림");
+    }
+
+    function 분석다중선택패널채우기(키, 목록) {
+      var 패널 = document.getElementById("분석" + 키 + "필터패널");
+      패널.innerHTML = "";
+
+      var 전체label = document.createElement("label");
+      var 전체체크 = document.createElement("input");
+      전체체크.type = "checkbox";
+      전체체크.checked = 분석다중선택상태[키].length === 0;
+      전체체크.onchange = function () {
+        if (전체체크.checked) {
+          분석다중선택상태[키] = [];
+          분석다중선택패널채우기(키, 목록);
+          분석다중선택버튼갱신(키);
+          분석렌더링();
+        } else {
+          전체체크.checked = true;
+        }
+      };
+      전체label.appendChild(전체체크);
+      전체label.appendChild(document.createTextNode("전체"));
+      패널.appendChild(전체label);
+
+      (목록 || []).forEach(function (값) {
+        var label = document.createElement("label");
+        var 체크 = document.createElement("input");
+        체크.type = "checkbox";
+        체크.value = 값;
+        체크.checked = 분석다중선택상태[키].indexOf(값) !== -1;
+        체크.onchange = function () {
+          var idx = 분석다중선택상태[키].indexOf(값);
+          if (체크.checked) {
+            if (idx === -1) 분석다중선택상태[키].push(값);
+          } else if (idx !== -1) {
+            분석다중선택상태[키].splice(idx, 1);
+          }
+          분석다중선택패널채우기(키, 목록);
+          분석다중선택버튼갱신(키);
+          분석렌더링();
+        };
+        label.appendChild(체크);
+        label.appendChild(document.createTextNode(값));
+        패널.appendChild(label);
+      });
+    }
+
+    function 분석다중선택버튼갱신(키) {
+      var 버튼 = document.querySelector("#분석" + 키 + "필터래퍼 .다중선택버튼");
+      var 선택 = 분석다중선택상태[키];
+      var 기본텍스트 = 분석다중선택기본텍스트[키];
+      if (선택.length === 0) {
+        버튼.textContent = 기본텍스트 + ": 전체";
+      } else if (선택.length === 1) {
+        버튼.textContent = 기본텍스트 + ": " + 선택[0];
+      } else {
+        버튼.textContent = 기본텍스트 + ": " + 선택.length + "개 선택";
+      }
+    }
+
+    function 분석기준변경() {
       분석렌더링();
     }
 
-    function 분석광고주옵션채우기() {
-      var 선택카테고리 = document.getElementById("분석카테고리필터").value;
-      var 카테고리맵 = 광고주카테고리맵();
-      var 존재 = 존재값집합();
-
-      var 광고주목록 = 광고주옵션목록().filter(function (광고주) {
-        if (!존재.광고주[광고주]) return false;
-        if (선택카테고리 === "전체") return true;
-        return 카테고리맵[광고주] === 선택카테고리;
-      });
-
-      var 광고주셀렉트 = document.getElementById("분석광고주필터");
-      var 현재광고주 = 광고주셀렉트.value || "전체";
-      광고주셀렉트.innerHTML = '<option value="전체">전체</option>';
-      광고주목록.forEach(function (이름) {
-        var 옵션 = document.createElement("option");
-        옵션.value = 이름;
-        옵션.textContent = 이름;
-        광고주셀렉트.appendChild(옵션);
-      });
-      광고주셀렉트.value = 광고주목록.indexOf(현재광고주) !== -1 ? 현재광고주 : "전체";
+    function 분석필터변경() {
+      분석렌더링();
     }
 
-    // 분석탭 카테고리/광고주 필터를 적용한 데이터를 반환한다. 자사 데이터는 비교 기준이므로 항상 포함한다.
+    function 분석기간프리셋(값) {
+      var 부터 = document.getElementById("분석기간_부터");
+      var 까지 = document.getElementById("분석기간_까지");
+      if (값 === "전체") {
+        부터.value = "";
+        까지.value = "";
+      } else {
+        var 오늘 = new Date();
+        var 시작 = new Date(오늘);
+        시작.setDate(시작.getDate() - (Number(값) - 1));
+        까지.value = 날짜문자열변환(오늘);
+        부터.value = 날짜문자열변환(시작);
+      }
+      분석렌더링();
+    }
+
+    // 모바일 화면에서 분석 필터바 접기/펼치기 토글
+    function 분석필터바토글() {
+      var 내용 = document.getElementById("분석필터바내용");
+      var 버튼 = document.getElementById("분석필터토글버튼");
+      var 열림 = 내용.classList.toggle("열림");
+      버튼.textContent = 열림 ? "필터 접기 ▲" : "필터 펼치기 ▼";
+    }
+
+    function 분석필터초기화() {
+      document.getElementById("분석기준").value = "그룹";
+      document.getElementById("분석기간_부터").value = "";
+      document.getElementById("분석기간_까지").value = "";
+      document.getElementById("분석상태필터").value = "전체";
+      분석다중선택상태.카테고리 = [];
+      분석다중선택상태.그룹 = [];
+      분석옵션채우기();
+      분석렌더링();
+    }
+
+    // 분석탭 다중선택/기간/상태 필터를 적용한 데이터를 반환한다.
+    // 그룹/카테고리 선택은 자사 행에 적용하지 않는다(자사는 비교 기준이라 항상 포함).
+    // 기간·상태 필터는 자사 행에도 동일하게 적용해, 기간을 좁히면 KPI 등 모든 위젯에 일관되게 반영되게 한다.
     function 분석데이터계산() {
-      var 카테고리 = document.getElementById("분석카테고리필터").value;
-      var 광고주 = document.getElementById("분석광고주필터").value;
-      var 그룹선택 = document.getElementById("분석그룹필터").value;
+      var 카테고리선택 = 분석다중선택상태.카테고리;
+      var 그룹선택 = 분석다중선택상태.그룹;
+      var 상태 = document.getElementById("분석상태필터").value;
+      var 기간_부터 = document.getElementById("분석기간_부터").value;
+      var 기간_까지 = document.getElementById("분석기간_까지").value;
       var 카테고리맵 = 광고주카테고리맵();
       var 그룹맵 = 광고주그룹맵();
 
       return 전체데이터.filter(function (행) {
-        if (행.__구분 === "자사") return true;
-        if (카테고리 !== "전체" && 카테고리맵[행.광고주] !== 카테고리) return false;
-        if (광고주 !== "전체" && 행.광고주 !== 광고주) return false;
-        if (그룹선택 !== "전체" && 그룹맵[행.광고주] !== 그룹선택) return false;
+        var 자사여부 = 행.__구분 === "자사";
+        if (!자사여부) {
+          if (카테고리선택.length && 카테고리선택.indexOf(카테고리맵[행.광고주]) === -1) return false;
+          if (그룹선택.length && 그룹선택.indexOf(그룹맵[행.광고주]) === -1) return false;
+        }
+        if (상태 !== "전체" && 행.상태 !== 상태) return false;
+        if (기간_부터 || 기간_까지) {
+          var 시작 = 행.광고시작일 || "";
+          var 종료 = 행.광고종료일 || "";
+          if (기간_부터 && 종료 && 종료 < 기간_부터) return false;
+          if (기간_까지 && 시작 && 시작 > 기간_까지) return false;
+        }
         return true;
       });
     }
 
+    function 분석결과정보갱신() {
+      var 전체 = 분석필터데이터.length;
+      var 자사 = 분석필터데이터.filter(function (행) { return 행.__구분 === "자사"; }).length;
+      var 경쟁 = 전체 - 자사;
+      var 엘리먼트 = document.getElementById("분석결과정보");
+      엘리먼트.innerHTML = "";
+      엘리먼트.appendChild(document.createTextNode("분석 대상 " + 전체 + "건 (자사 " + 자사 + "건 / 경쟁 " + 경쟁 + "건) "));
+      var 아이콘 = document.createElement("span");
+      아이콘.className = "정보아이콘";
+      아이콘.title = "자사는 비교 기준이라 항상 포함됩니다";
+      아이콘.textContent = "ⓘ";
+      엘리먼트.appendChild(아이콘);
+    }
+
+    function 분석스켈레톤표시() {
+      분석위젯ID목록.forEach(function (id) {
+        var dom = document.getElementById(id);
+        if (dom) dom.innerHTML = '<div class="차트스켈레톤"></div>';
+      });
+      var kpi = document.getElementById("KPI스트립");
+      if (kpi) kpi.innerHTML = '<div class="차트스켈레톤" style="grid-column:1/-1;height:70px;"></div>';
+    }
+
+    function 분석로드실패표시() {
+      분석위젯ID목록.forEach(function (id) {
+        var dom = document.getElementById(id);
+        if (dom) dom.innerHTML = '<div class="차트로드실패">⚠ 차트를 불러오지 못했습니다</div>';
+      });
+    }
+
+    // id에 대응하는 echarts 인스턴스를 재사용(없으면 생성)해서 반환한다. dispose 후 재생성을 피해 깜빡임을 줄인다.
+    function 차트가져오기(id) {
+      var dom = document.getElementById(id);
+      if (!dom) return null;
+      if (차트로드실패) {
+        dom.innerHTML = '<div class="차트로드실패">⚠ 차트를 불러오지 못했습니다</div>';
+        return null;
+      }
+      if (!차트인스턴스[id] || 차트인스턴스[id].isDisposed()) {
+        dom.innerHTML = "";
+        차트인스턴스[id] = echarts.init(dom);
+      }
+      return 차트인스턴스[id];
+    }
+
+    function 차트빈상태표시(id) {
+      if (차트인스턴스[id] && !차트인스턴스[id].isDisposed()) {
+        차트인스턴스[id].dispose();
+        delete 차트인스턴스[id];
+      }
+      var dom = document.getElementById(id);
+      if (dom) {
+        dom.innerHTML = '<div class="차트빈상태">조건에 맞는 소재가 없습니다 · 필터를 완화해 보세요<br>' +
+          '<button type="button" class="차트빈상태버튼" onclick="분석필터초기화()">초기화</button></div>';
+      }
+    }
+
     function 분석렌더링() {
-      if (!차트로드완료 || !전체데이터.length) return;
+      if (차트로드실패) { 분석로드실패표시(); return; }
+      if (!전체데이터.length) { 분석스켈레톤표시(); return; }
+
       var 기준 = 분석그룹맵핑적용();
+      분석색맵계산(기준);
       분석필터데이터 = 분석데이터계산();
-      var 기준라벨 = 기준 === "카테고리" ? "카테고리별" : (기준 === "그룹" ? "그룹별" : "광고주별");
-      ["차트2제목", "차트3제목", "차트4제목"].forEach(function (id) {
+      분석결과정보갱신();
+
+      var 기준라벨 = 기준 === "카테고리" ? "카테고리별" : "그룹별";
+      ["차트추이제목", "차트히트맵제목", "차트격차제목", "차트볼륨제목", "차트운영기간제목"].forEach(function (id) {
         var el = document.getElementById(id);
-        el.textContent = 기준라벨 + " " + el.textContent.replace(/^(?:(?:광고주별|카테고리별|그룹별)\s*)+/, "");
+        el.textContent = 기준라벨 + " " + el.dataset.기본제목;
       });
-      차트_소재유형비교();
-      차트_보종집중도();
-      차트_소구포인트비교();
-      차트_신규소재빈도();
+
+      차트_KPI();
+      차트_추이();
+      차트_히트맵();
+      차트_격차();
+      차트_볼륨();
+      차트_운영기간();
     }
 
-    // 1. 자사 vs 경쟁사 소재유형 비중 비교
-    function 차트_소재유형비교() {
-      var 소재유형목록 = 분류목록계산(분석필터데이터, "소재유형", 설정값.소재유형);
-      var 집계 = 분류집계(분석필터데이터, "__구분", "소재유형", 설정값.소재유형);
-      var 구분목록 = 그룹순서계산(분석필터데이터, "__구분", ["자사", "경쟁사"]);
+    // KPI 스트립: 총 소재 / 신규 / 운영중 / 종료 / 평균 운영일수 / 자사 점유율
+    function 차트_KPI() {
+      var 데이터 = 분석필터데이터;
+      var 자사데이터 = 데이터.filter(function (행) { return 행.__구분 === "자사"; });
+      var 경쟁데이터 = 데이터.filter(function (행) { return 행.__구분 !== "자사"; });
 
-      var 헤더 = ["구분"].concat(소재유형목록);
-      var 행들 = 구분목록.map(function (구분) {
-        return [구분].concat(소재유형목록.map(function (분류) {
-          return (집계[구분] && 집계[구분][분류]) || 0;
-        }));
+      function 상태건수(목록, 상태) { return 목록.filter(function (행) { return 행.상태 === 상태; }).length; }
+      function 평균운영일수(목록) {
+        var 값들 = 목록.map(function (행) { return Number(행.운영일수); }).filter(function (n) { return !isNaN(n); });
+        return 값들.length ? Math.round(값들.reduce(function (a, b) { return a + b; }, 0) / 값들.length) : null;
+      }
+
+      var 전체 = 데이터.length;
+      var 신규 = 상태건수(데이터, "신규");
+      var 운영중 = 상태건수(데이터, "운영중");
+      var 종료 = 상태건수(데이터, "종료");
+      var 평균 = 평균운영일수(데이터);
+      var 자사평균 = 평균운영일수(자사데이터);
+      var 경쟁평균 = 평균운영일수(경쟁데이터);
+      var 자사점유율 = 전체 ? Math.round((자사데이터.length / 전체) * 1000) / 10 : null;
+
+      var 타일 = [
+        { 라벨: "총 소재", 값: 전체, 단위: "건", 보조: "자사 " + 자사데이터.length + "건 · 경쟁 " + 경쟁데이터.length + "건" },
+        { 라벨: "신규(기간내)", 값: 신규, 단위: "건", 보조: "자사 " + 상태건수(자사데이터, "신규") + "건 · 경쟁 " + 상태건수(경쟁데이터, "신규") + "건" },
+        { 라벨: "운영중", 값: 운영중, 단위: "건", 보조: "자사 " + 상태건수(자사데이터, "운영중") + "건 · 경쟁 " + 상태건수(경쟁데이터, "운영중") + "건" },
+        { 라벨: "종료", 값: 종료, 단위: "건", 보조: "자사 " + 상태건수(자사데이터, "종료") + "건 · 경쟁 " + 상태건수(경쟁데이터, "종료") + "건" },
+        { 라벨: "평균 운영일수", 값: 평균, 단위: "일", 보조: (자사평균 !== null && 경쟁평균 !== null) ? ("자사 " + 자사평균 + "일 · 경쟁 " + 경쟁평균 + "일") : "" },
+        { 라벨: "자사 점유율", 값: 자사점유율, 단위: "%", 보조: "" }
+      ];
+
+      var 스트립 = document.getElementById("KPI스트립");
+      스트립.innerHTML = "";
+      타일.forEach(function (t) {
+        var 값없음 = (t.값 === null || t.값 === undefined || isNaN(t.값) || t.값 === 0);
+        var 카드 = document.createElement("div");
+        카드.className = "KPI타일";
+        var 라벨 = document.createElement("div");
+        라벨.className = "KPI라벨";
+        라벨.textContent = t.라벨;
+        var 값엘 = document.createElement("div");
+        값엘.className = "KPI값";
+        값엘.textContent = 값없음 ? "—" : (t.값 + t.단위);
+        카드.appendChild(라벨);
+        카드.appendChild(값엘);
+        if (!값없음 && t.보조) {
+          var 보조엘 = document.createElement("div");
+          보조엘.className = "KPI보조";
+          보조엘.textContent = t.보조;
+          카드.appendChild(보조엘);
+        }
+        스트립.appendChild(카드);
       });
 
-      차트데이터.차트1 = { 헤더: 헤더, 행들: 행들 };
+      차트데이터.KPI = {
+        헤더: ["지표", "값"],
+        행들: 타일.map(function (t) { return [t.라벨, (t.값 === null || t.값 === undefined) ? "" : t.값]; })
+      };
+    }
 
-      var data = google.visualization.arrayToDataTable([헤더].concat(행들));
-      var chart = new google.visualization.ColumnChart(document.getElementById("차트1"));
-      chart.draw(data, {
-        isStacked: "percent",
-        legend: { position: "top" },
-        chartArea: { width: "80%", height: "75%" },
+    function 날짜필드추출(행) {
+      return 행.광고시작일 || 행.최초발견일 || 행.수집일 || "";
+    }
+    function 월키추출(날짜문자열) {
+      var m = /^(\d{4})-(\d{2})/.exec(날짜문자열 || "");
+      return m ? (m[1] + "-" + m[2]) : null;
+    }
+    function 월다음달첫날(월키) {
+      var parts = 월키.split("-");
+      var y = Number(parts[0]), m = Number(parts[1]) + 1;
+      if (m > 12) { m = 1; y += 1; }
+      var d = new Date(y, m - 1, 1);
+      d.setDate(d.getDate() - 1);
+      return 날짜문자열변환(d);
+    }
+
+    // 신규 소재 출시 추이 (전체폭 라인 차트). 시리즈=그룹, 상위 7개+기타. 자사만 굵게+직접 라벨.
+    function 차트_추이() {
+      var 데이터 = 분석필터데이터;
+      var 제외건수 = 0;
+      var 유효 = [];
+      데이터.forEach(function (행) {
+        var 월 = 월키추출(날짜필드추출(행));
+        if (!월) { 제외건수++; return; }
+        유효.push({ 행: 행, 월: 월 });
+      });
+
+      var 안내 = document.getElementById("차트추이안내");
+      안내.textContent = 제외건수 > 0 ? ("날짜 미상 " + 제외건수 + "건 제외") : "";
+
+      if (!유효.length) { 차트빈상태표시("차트추이"); 차트데이터.차트추이 = null; return; }
+
+      var 정렬 = 분석그룹정렬(데이터);
+      var 상위 = 정렬.순서.slice(0, 7);
+      var 기타있음 = 정렬.순서.length > 7;
+      var 표시그룹 = 상위.slice();
+      if (기타있음) 표시그룹.push("기타");
+
+      function 표시그룹매핑(그룹명) {
+        return 상위.indexOf(그룹명) !== -1 ? 그룹명 : "기타";
+      }
+
+      var 월목록 = [];
+      유효.forEach(function (r) { if (월목록.indexOf(r.월) === -1) 월목록.push(r.월); });
+      월목록.sort();
+
+      var 집계 = {};
+      유효.forEach(function (r) {
+        var 그룹표시 = 표시그룹매핑(r.행.__분석그룹 || "(미지정)");
+        if (!집계[그룹표시]) 집계[그룹표시] = {};
+        집계[그룹표시][r.월] = (집계[그룹표시][r.월] || 0) + 1;
+      });
+
+      var 기타색 = 분석CSS색("--기타색");
+      var series = 표시그룹.map(function (그룹명) {
+        var 값들 = 월목록.map(function (월) { return (집계[그룹명] && 집계[그룹명][월]) || 0; });
+        if (분석추이모드 === "누적") {
+          var 누적 = 0;
+          값들 = 값들.map(function (v) { 누적 += v; return 누적; });
+        }
+        var 자사여부 = !!분석자사그룹집합[그룹명];
+        var 색 = 그룹명 === "기타" ? 기타색 : (분석색맵[그룹명] || 기타색);
+        return {
+          name: 그룹명,
+          type: "line",
+          data: 값들,
+          symbolSize: 5,
+          lineStyle: { width: 자사여부 ? 3 : 2 },
+          itemStyle: { color: 색 },
+          color: 색,
+          endLabel: 자사여부 ? { show: true, formatter: function (p) { return p.seriesName; }, color: 색, fontSize: 11 } : { show: false },
+          emphasis: { focus: "series" }
+        };
+      });
+
+      차트데이터.차트추이 = {
+        헤더: ["월"].concat(표시그룹),
+        행들: 월목록.map(function (월, idx) {
+          return [월].concat(series.map(function (s) { return s.data[idx]; }));
+        })
+      };
+
+      var option = {
+        grid: { left: 50, right: 80, top: 36, bottom: 32, containLabel: true },
+        tooltip: { trigger: "axis", axisPointer: { type: "line" } },
+        legend: (표시그룹.length >= 2) ? { top: 0, textStyle: { color: 분석CSS색("--text-light"), fontSize: 11 } } : { show: false },
+        xAxis: { type: "category", data: 월목록, axisLine: { lineStyle: { color: 분석CSS색("--border") } }, axisLabel: { fontSize: 11, color: 분석CSS색("--text") } },
+        yAxis: { type: "value", splitLine: { lineStyle: { color: 분석CSS색("--border") } }, axisLabel: { fontSize: 11, color: 분석CSS색("--text") } },
+        series: series
+      };
+
+      var 차트 = 차트가져오기("차트추이");
+      if (!차트) return;
+      차트.setOption(option, true);
+      차트.off("click");
+      차트.on("click", function (params) {
+        var 월 = params.name;
+        드릴다운적용({
+          그룹명: params.seriesName === "기타" ? null : params.seriesName,
+          기간_부터: 월 + "-01",
+          기간_까지: 월다음달첫날(월)
+        });
       });
     }
 
-    // 2. 보종 집중도 비교 (광고주별/카테고리별)
-    function 차트_보종집중도() {
+    // 분류 비중 히트맵: 행=그룹(자사 최상단, n=건수 표기), 열=분류값, 셀=그룹 내 비중%
+    function 차트_히트맵() {
+      var 데이터 = 분석필터데이터;
+      var 분류키 = 분석히트맵분류;
+      var 허용목록 = 설정값[분류키] || [];
+      var 분류목록 = 분류목록계산(데이터, 분류키, 허용목록);
+      var 정렬 = 분석그룹정렬(데이터);
+      var 그룹목록 = 정렬.순서;
+
+      if (!데이터.length || !그룹목록.length) { 차트빈상태표시("차트히트맵"); 차트데이터.차트히트맵 = null; return; }
+
+      var 그룹건수 = 정렬.카운트;
+      var 집계 = 분류집계(데이터, "__분석그룹", 분류키, 허용목록);
+
+      // echarts category y축은 아래->위로 그려지므로, 자사가 맨 위(첫 행)에 오도록 뒤집어 넣는다.
+      var y표시목록 = 그룹목록.slice().reverse();
+      var y라벨 = y표시목록.map(function (g) { return g + " (n=" + (그룹건수[g] || 0) + ")"; });
+
+      var cellData = [];
+      var csv행들 = [];
+      y표시목록.forEach(function (그룹명, yi) {
+        var 총건수 = 그룹건수[그룹명] || 0;
+        var csv행 = [그룹명 + "(n=" + 총건수 + ")"];
+        분류목록.forEach(function (분류값, xi) {
+          var 건수 = (집계[그룹명] && 집계[그룹명][분류값]) || 0;
+          var 비중 = 총건수 ? Math.round((건수 / 총건수) * 1000) / 10 : 0;
+          cellData.push([xi, yi, 비중, 건수]);
+          csv행.push(비중 + "%");
+        });
+        csv행들.push(csv행);
+      });
+
+      차트데이터.차트히트맵 = { 헤더: ["그룹"].concat(분류목록), 행들: csv행들 };
+
+      var option = {
+        grid: { left: 150, right: 20, top: 20, bottom: 60, containLabel: true },
+        tooltip: {
+          formatter: function (p) {
+            return y라벨[p.data[1]] + " · " + 분류목록[p.data[0]] + "<br/>" + p.data[3] + "건 (" + p.data[2] + "%)";
+          }
+        },
+        xAxis: { type: "category", data: 분류목록, splitArea: { show: true }, axisLabel: { fontSize: 11, color: 분석CSS색("--text") }, axisLine: { lineStyle: { color: 분석CSS색("--border") } } },
+        yAxis: { type: "category", data: y라벨, splitArea: { show: true }, axisLabel: { fontSize: 11, color: 분석CSS색("--text") }, axisLine: { lineStyle: { color: 분석CSS색("--border") } } },
+        visualMap: {
+          min: 0, max: 100, show: false, calculable: false,
+          inRange: { color: ["#cde2fb", "#9ec5f4", "#5598e7", "#2a78d6", "#184f95"] }
+        },
+        series: [{
+          type: "heatmap",
+          data: cellData,
+          label: { show: true, formatter: function (p) { return p.data[2] + "%"; }, color: 분석CSS색("--text"), fontSize: 11 },
+          itemStyle: { borderColor: 분석CSS색("--card-bg"), borderWidth: 2 }
+        }]
+      };
+
+      var 차트 = 차트가져오기("차트히트맵");
+      if (!차트) return;
+      차트.setOption(option, true);
+      차트.off("click");
+      차트.on("click", function (params) {
+        if (params.componentType !== "series") return;
+        var 그룹명 = y표시목록[params.data[1]];
+        var 분류값 = 분류목록[params.data[0]];
+        var 드릴분류값 = (분류값 === "미분류" || 분류값 === "기타") ? null : 분류값;
+        드릴다운적용({ 그룹명: 그룹명, 분류키: 분류키, 분류값: 드릴분류값 });
+      });
+    }
+
+    // 자사 vs 경쟁 평균 격차: (자사 분류 비중%) - (경쟁사 전체 분류 비중%), 발산형 가로 막대
+    function 차트_격차() {
+      var 데이터 = 분석필터데이터;
+      var 분류키 = 분석격차분류;
+      var 허용목록 = 설정값[분류키] || [];
+      var 분류목록 = 분류목록계산(데이터, 분류키, 허용목록);
+      var 자사데이터 = 데이터.filter(function (행) { return 행.__구분 === "자사"; });
+      var 경쟁데이터 = 데이터.filter(function (행) { return 행.__구분 !== "자사"; });
+
+      if (!자사데이터.length || !경쟁데이터.length) { 차트빈상태표시("차트격차"); 차트데이터.차트격차 = null; return; }
+
+      function 비중맵(목록) {
+        var 집계 = {};
+        목록.forEach(function (행) {
+          var v = 분류값정규화(행[분류키], 허용목록);
+          집계[v] = (집계[v] || 0) + 1;
+        });
+        var 맵 = {};
+        분류목록.forEach(function (v) { 맵[v] = 목록.length ? (집계[v] || 0) / 목록.length * 100 : 0; });
+        return 맵;
+      }
+
+      var 자사비중 = 비중맵(자사데이터);
+      var 경쟁비중 = 비중맵(경쟁데이터);
+
+      var 항목 = 분류목록.map(function (v) {
+        return { 분류값: v, 격차: Math.round((자사비중[v] - 경쟁비중[v]) * 10) / 10 };
+      });
+      항목.sort(function (a, b) { return Math.abs(b.격차) - Math.abs(a.격차); });
+
+      차트데이터.차트격차 = {
+        헤더: [분류키, "격차(%p, 자사-경쟁)"],
+        행들: 항목.map(function (i) { return [i.분류값, i.격차]; })
+      };
+
+      var 블루 = 분석CSS색("--시리즈-1");
+      var 레드 = 분석CSS색("--시리즈-7");
+      var 중립 = "#f0efec";
+      var y항목 = 항목.slice().reverse();
+
+      var option = {
+        grid: { left: 120, right: 60, top: 10, bottom: 20, containLabel: true },
+        tooltip: { formatter: function (p) { return p.name + "<br/>" + (p.value >= 0 ? "+" : "") + p.value + "%p"; } },
+        xAxis: { type: "value", axisLine: { lineStyle: { color: 분석CSS색("--border") } }, splitLine: { lineStyle: { color: 분석CSS색("--border") } }, axisLabel: { color: 분석CSS색("--text-light"), fontSize: 11 } },
+        yAxis: { type: "category", data: y항목.map(function (i) { return i.분류값; }), axisLabel: { fontSize: 11, color: 분석CSS색("--text") }, axisLine: { lineStyle: { color: 분석CSS색("--border") } } },
+        series: [{
+          type: "bar",
+          barMaxWidth: 22,
+          data: y항목.map(function (i) {
+            var 색 = i.격차 > 0 ? 블루 : (i.격차 < 0 ? 레드 : 중립);
+            return {
+              value: i.격차,
+              itemStyle: { color: 색, borderRadius: 4 },
+              label: {
+                show: true,
+                position: i.격차 >= 0 ? "right" : "left",
+                formatter: (i.격차 >= 0 ? "+" : "") + i.격차 + "%p",
+                color: 분석CSS색("--text"),
+                fontSize: 11
+              }
+            };
+          }),
+          markLine: { symbol: "none", silent: true, label: { show: false }, lineStyle: { color: 분석CSS색("--border") }, data: [{ xAxis: 0 }] }
+        }]
+      };
+
+      var 차트 = 차트가져오기("차트격차");
+      if (!차트) return;
+      차트.setOption(option, true);
+      차트.off("click");
+      차트.on("click", function (params) {
+        드릴다운적용({ 분류키: 분류키, 분류값: params.name });
+      });
+    }
+
+    // 그룹별 소재 볼륨·상태 구성: 가로 스택 막대(건수), y=그룹(자사 최상단 고정, 나머지 총건수 내림차순)
+    function 차트_볼륨() {
+      var 데이터 = 분석필터데이터;
+      var 정렬 = 분석그룹정렬(데이터);
+      var 그룹목록 = 정렬.순서;
+      if (!데이터.length || !그룹목록.length) { 차트빈상태표시("차트볼륨"); 차트데이터.차트볼륨 = null; return; }
+
+      var y표시 = 그룹목록.slice().reverse();
+      var 상태목록 = ["신규", "운영중", "종료"];
+      var 상태색 = { 신규: "#1baf7a", 운영중: "#2a78d6", 종료: "#a8a7a1" };
+
+      var 집계 = {};
+      데이터.forEach(function (행) {
+        var g = 행.__분석그룹 || "(미지정)";
+        var s = (상태목록.indexOf(행.상태) !== -1) ? 행.상태 : "종료";
+        if (!집계[g]) 집계[g] = { 신규: 0, 운영중: 0, 종료: 0 };
+        집계[g][s]++;
+      });
+
+      var series = 상태목록.map(function (상태) {
+        return {
+          name: 상태,
+          type: "bar",
+          stack: "총합",
+          data: y표시.map(function (g) { return (집계[g] && 집계[g][상태]) || 0; }),
+          itemStyle: { color: 상태색[상태], borderColor: 분석CSS색("--card-bg"), borderWidth: 2, borderRadius: 4 }
+        };
+      });
+      series[series.length - 1].label = {
+        show: true,
+        position: "right",
+        formatter: function (p) { return ((정렬.카운트[y표시[p.dataIndex]]) || 0) + "건"; },
+        color: 분석CSS색("--text"),
+        fontSize: 11
+      };
+
+      차트데이터.차트볼륨 = {
+        헤더: ["그룹", "신규", "운영중", "종료", "합계"],
+        행들: 그룹목록.map(function (g) {
+          var c = 집계[g] || { 신규: 0, 운영중: 0, 종료: 0 };
+          return [g, c.신규, c.운영중, c.종료, c.신규 + c.운영중 + c.종료];
+        })
+      };
+
+      var option = {
+        grid: { left: 150, right: 60, top: 30, bottom: 20, containLabel: true },
+        tooltip: {
+          trigger: "axis",
+          axisPointer: { type: "shadow" },
+          formatter: function (params) {
+            var g = y표시[params[0].dataIndex];
+            var lines = params.map(function (p) { return p.marker + p.seriesName + ": " + p.value + "건"; });
+            return g + " (총 " + ((정렬.카운트[g]) || 0) + "건)<br/>" + lines.join("<br/>");
+          }
+        },
+        legend: { top: 0, textStyle: { color: 분석CSS색("--text-light"), fontSize: 11 } },
+        xAxis: { type: "value", axisLine: { lineStyle: { color: 분석CSS색("--border") } }, splitLine: { lineStyle: { color: 분석CSS색("--border") } }, axisLabel: { color: 분석CSS색("--text-light"), fontSize: 11 } },
+        yAxis: { type: "category", data: y표시, axisLabel: { fontSize: 11, color: 분석CSS색("--text") }, axisLine: { lineStyle: { color: 분석CSS색("--border") } } },
+        series: series
+      };
+
+      var 차트 = 차트가져오기("차트볼륨");
+      if (!차트) return;
+      차트.setOption(option, true);
+      차트.off("click");
+      차트.on("click", function (params) {
+        드릴다운적용({ 그룹명: y표시[params.dataIndex], 상태: params.seriesName });
+      });
+    }
+
+    // 운영 기간 분포: 그룹별 운영일수 구간(갤러리 #운영일수필터와 동일 구간) 100% 가로 스택바
+    function 차트_운영기간() {
+      var 데이터 = 분석필터데이터;
+      var 정렬 = 분석그룹정렬(데이터);
+      var 그룹목록 = 정렬.순서;
+      if (!데이터.length || !그룹목록.length) { 차트빈상태표시("차트운영기간"); 차트데이터.차트운영기간 = null; return; }
+
+      var y표시 = 그룹목록.slice().reverse();
+      var 색상 = { "1-10": "#86b6ef", "11-30": "#5598e7", "31-60": "#2a78d6", "61+": "#1e5aa8", "미상": 분석CSS색("--기타색") };
+
+      function 구간찾기(운영일수) {
+        var n = Number(운영일수);
+        if (운영일수 === undefined || 운영일수 === null || 운영일수 === "" || isNaN(n)) return "미상";
+        for (var i = 0; i < 분석운영일수구간.length; i++) {
+          var b = 분석운영일수구간[i];
+          if (b.key !== "미상" && n >= b.min && n <= b.max) return b.key;
+        }
+        return "미상";
+      }
+
+      var 집계 = {};
+      데이터.forEach(function (행) {
+        var g = 행.__분석그룹 || "(미지정)";
+        var 구간 = 구간찾기(행.운영일수);
+        if (!집계[g]) 집계[g] = {};
+        집계[g][구간] = (집계[g][구간] || 0) + 1;
+      });
+
+      var series = 분석운영일수구간.map(function (구간정보) {
+        return {
+          name: 구간정보.label,
+          type: "bar",
+          stack: "총합",
+          data: y표시.map(function (g) {
+            var 총 = 정렬.카운트[g] || 0;
+            var 건수 = (집계[g] && 집계[g][구간정보.key]) || 0;
+            return 총 ? Math.round((건수 / 총) * 1000) / 10 : 0;
+          }),
+          itemStyle: { color: 색상[구간정보.key], borderColor: 분석CSS색("--card-bg"), borderWidth: 2, borderRadius: 4 }
+        };
+      });
+
+      차트데이터.차트운영기간 = {
+        헤더: ["그룹"].concat(분석운영일수구간.map(function (b) { return b.label; })),
+        행들: 그룹목록.map(function (g) {
+          var 총 = 정렬.카운트[g] || 0;
+          return [g].concat(분석운영일수구간.map(function (b) {
+            var 건수 = (집계[g] && 집계[g][b.key]) || 0;
+            return 총 ? Math.round((건수 / 총) * 1000) / 10 : 0;
+          }));
+        })
+      };
+
+      var option = {
+        grid: { left: 150, right: 20, top: 30, bottom: 20, containLabel: true },
+        tooltip: { trigger: "axis", axisPointer: { type: "shadow" } },
+        legend: { top: 0, textStyle: { color: 분석CSS색("--text-light"), fontSize: 11 }, data: 분석운영일수구간.map(function (b) { return b.label; }) },
+        xAxis: { type: "value", max: 100, axisLabel: { formatter: "{value}%", color: 분석CSS색("--text-light"), fontSize: 11 }, axisLine: { lineStyle: { color: 분석CSS색("--border") } }, splitLine: { lineStyle: { color: 분석CSS색("--border") } } },
+        yAxis: { type: "category", data: y표시, axisLabel: { fontSize: 11, color: 분석CSS색("--text") }, axisLine: { lineStyle: { color: 분석CSS색("--border") } } },
+        series: series
+      };
+
+      var 차트 = 차트가져오기("차트운영기간");
+      if (!차트) return;
+      차트.setOption(option, true);
+      차트.off("click");
+      차트.on("click", function (params) {
+        var 구간정보 = 분석운영일수구간[params.seriesIndex];
+        드릴다운적용({ 그룹명: y표시[params.dataIndex] });
+        document.getElementById("운영일수필터").value = 구간정보.key === "미상" ? "" : 구간정보.key;
+        필터적용();
+      });
+    }
+
+    // 세그먼트 토글 핸들러 (히트맵/격차/추이 카드 헤더의 분류·모드 전환)
+    function 히트맵분류변경(값) {
+      분석히트맵분류 = 값;
+      document.querySelectorAll("#히트맵분류세그먼트 .세그먼트버튼").forEach(function (b) { b.classList.toggle("활성", b.dataset.값 === 값); });
+      차트_히트맵();
+    }
+    function 격차분류변경(값) {
+      분석격차분류 = 값;
+      document.querySelectorAll("#격차분류세그먼트 .세그먼트버튼").forEach(function (b) { b.classList.toggle("활성", b.dataset.값 === 값); });
+      차트_격차();
+    }
+    function 추이모드변경(값) {
+      분석추이모드 = 값;
+      document.querySelectorAll("#추이모드세그먼트 .세그먼트버튼").forEach(function (b) { b.classList.toggle("활성", b.dataset.값 === 값); });
+      차트_추이();
+    }
+
+    // 분석 차트 클릭 -> 갤러리 탭으로 전환 + 조건 주입 + 필터적용() 호출 (갤러리 함수 재사용, 시그니처는 건드리지 않는다)
+    function 드릴다운적용(옵션) {
       var 기준 = document.getElementById("분석기준").value;
-      var 보종목록 = 분류목록계산(분석필터데이터, "보종", 설정값.보종);
-      var 집계 = 분류집계(분석필터데이터, "__분석그룹", "보종", 설정값.보종);
-      var 광고주목록 = 그룹순서계산(분석필터데이터, "__분석그룹", 분석그룹우선순위(기준));
+      탭전환("갤러리탭");
+      필터초기화();
+      if (옵션.그룹명) {
+        if (기준 === "카테고리") {
+          다중선택상태.카테고리 = [옵션.그룹명];
+        } else {
+          document.getElementById("그룹필터").value = 옵션.그룹명;
+        }
+      }
+      if (옵션.분류키 && 옵션.분류값) {
+        다중선택상태[옵션.분류키] = [옵션.분류값];
+      }
+      if (옵션.상태) {
+        document.getElementById("상태필터").value = 옵션.상태;
+      }
+      if (옵션.기간_부터) document.getElementById("기간_부터").value = 옵션.기간_부터;
+      if (옵션.기간_까지) document.getElementById("기간_까지").value = 옵션.기간_까지;
 
-      var 헤더 = ["광고주"].concat(보종목록);
-      var 행들 = 광고주목록.map(function (광고주) {
-        return [광고주].concat(보종목록.map(function (분류) {
-          return (집계[광고주] && 집계[광고주][분류]) || 0;
-        }));
-      });
-
-      차트데이터.차트2 = { 헤더: 헤더, 행들: 행들 };
-
-      var data = google.visualization.arrayToDataTable([헤더].concat(행들));
-      var chart = new google.visualization.ColumnChart(document.getElementById("차트2"));
-      chart.draw(data, {
-        isStacked: "percent",
-        legend: { position: "top" },
-        chartArea: { width: "85%", height: "50%" },
-        hAxis: { slantedText: true, slantedTextAngle: 45, textStyle: { fontSize: 10 } },
-      });
+      필터옵션채우기();
+      필터적용();
+      드릴다운배너표시();
     }
 
-    // 3. 소구포인트 비교 (광고주별/카테고리별)
-    function 차트_소구포인트비교() {
-      var 기준 = document.getElementById("분석기준").value;
-      var 소구포인트목록 = 분류목록계산(분석필터데이터, "소구포인트", 설정값.소구포인트);
-      var 집계 = 분류집계(분석필터데이터, "__분석그룹", "소구포인트", 설정값.소구포인트);
-      var 광고주목록 = 그룹순서계산(분석필터데이터, "__분석그룹", 분석그룹우선순위(기준));
-
-      var 헤더 = ["광고주"].concat(소구포인트목록);
-      var 행들 = 광고주목록.map(function (광고주) {
-        return [광고주].concat(소구포인트목록.map(function (분류) {
-          return (집계[광고주] && 집계[광고주][분류]) || 0;
-        }));
-      });
-
-      차트데이터.차트3 = { 헤더: 헤더, 행들: 행들 };
-
-      var data = google.visualization.arrayToDataTable([헤더].concat(행들));
-      var chart = new google.visualization.ColumnChart(document.getElementById("차트3"));
-      chart.draw(data, {
-        isStacked: "percent",
-        legend: { position: "top" },
-        chartArea: { width: "85%", height: "50%" },
-        hAxis: { slantedText: true, slantedTextAngle: 45, textStyle: { fontSize: 10 } },
-      });
+    // document.body 최상단에 배너를 동적으로 붙인다 - 탭이 갤러리로 바뀌어도(분석탭 display:none) 보이게 하기 위함.
+    function 드릴다운배너표시() {
+      var 배너 = document.getElementById("분석드릴다운배너");
+      if (!배너) {
+        배너 = document.createElement("div");
+        배너.id = "분석드릴다운배너";
+        var 텍스트 = document.createElement("span");
+        텍스트.textContent = "분석에서 넘어온 필터가 적용되었습니다";
+        var 버튼 = document.createElement("button");
+        버튼.type = "button";
+        버튼.textContent = "해제";
+        버튼.onclick = function () { 드릴다운배너닫기(); 필터초기화(); };
+        배너.appendChild(텍스트);
+        배너.appendChild(버튼);
+        document.body.appendChild(배너);
+      }
+      배너.classList.add("보임");
     }
-
-    // 4. 신규 소재 출시 빈도 (누적 소재 수, 광고주별/카테고리별)
-    function 차트_신규소재빈도() {
-      var 기준 = document.getElementById("분석기준").value;
-      var 광고주목록 = 그룹순서계산(분석필터데이터, "__분석그룹", 분석그룹우선순위(기준));
-
-      var 헤더 = ["광고주", "소재 수"];
-      var 행들 = 광고주목록.map(function (광고주) {
-        var 건수 = 분석필터데이터.filter(function (행) { return 행.__분석그룹 === 광고주; }).length;
-        return [광고주, 건수];
-      });
-
-      차트데이터.차트4 = { 헤더: 헤더, 행들: 행들 };
-
-      var data = google.visualization.arrayToDataTable([헤더].concat(행들));
-      var chart = new google.visualization.ColumnChart(document.getElementById("차트4"));
-      chart.draw(data, {
-        legend: { position: "none" },
-        chartArea: { width: "85%", height: "50%" },
-        hAxis: { slantedText: true, slantedTextAngle: 45, textStyle: { fontSize: 10 } },
-      });
+    function 드릴다운배너닫기() {
+      var 배너 = document.getElementById("분석드릴다운배너");
+      if (배너) 배너.classList.remove("보임");
     }
 
     // CSV 필드 값을 RFC 4180 규칙에 맞게 인용 처리한다.
@@ -2241,36 +3174,63 @@
       return 문자열;
     }
 
-    // 분석탭 차트의 현재 데이터를 CSV 파일로 만들어 사용자 컴퓨터에 다운로드한다.
-    function 차트결과다운로드(차트id) {
-      var 데이터 = 차트데이터[차트id];
-      if (!데이터 || !데이터.헤더) return;
+    function CSV_섹션(헤더, 행들) {
+      var 행목록 = [헤더].concat(행들 || []);
+      return 행목록.map(function (행) { return 행.map(CSV_필드).join(","); }).join("\r\n");
+    }
 
-      var 제목 = document.getElementById(차트id + "제목").textContent;
-      var 안전제목 = 제목.replace(/\s+/g, "").replace(/[\\/:*?"<>|]/g, "");
-
+    function 오늘날짜문자열() {
       var 오늘 = new Date();
-      var 날짜문자열 = 오늘.getFullYear() +
-        String(오늘.getMonth() + 1).padStart(2, "0") +
-        String(오늘.getDate()).padStart(2, "0");
+      return 오늘.getFullYear() + String(오늘.getMonth() + 1).padStart(2, "0") + String(오늘.getDate()).padStart(2, "0");
+    }
 
-      var 행목록 = [데이터.헤더].concat(데이터.행들);
-      var csv = 행목록.map(function (행) {
-        return 행.map(CSV_필드).join(",");
-      }).join("\r\n");
-
-      // 엑셀에서 한글이 깨지지 않도록 UTF-8 BOM을 붙인다.
+    // 엑셀에서 한글이 깨지지 않도록 UTF-8 BOM을 붙여 CSV를 다운로드한다.
+    function CSV_다운로드(csv, 파일명) {
       var BOM = String.fromCharCode(0xFEFF);
       var blob = new Blob([BOM + csv], { type: "text/csv;charset=utf-8;" });
       var url = URL.createObjectURL(blob);
-
       var a = document.createElement("a");
       a.href = url;
-      a.download = "분석결과_" + 안전제목 + "_" + 날짜문자열 + ".csv";
+      a.download = 파일명;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
+    }
+
+    // 카드 우상단 ⋯ 메뉴: 이 차트 데이터만 CSV로 다운로드한다.
+    function 차트결과다운로드(차트id) {
+      var 데이터 = 차트데이터[차트id];
+      if (!데이터 || !데이터.헤더) {
+        alert("다운로드할 데이터가 없습니다.");
+        return;
+      }
+      var 제목엘 = document.getElementById(차트id + "제목");
+      var 제목 = 제목엘 ? 제목엘.textContent : 차트id;
+      var 안전제목 = 제목.replace(/\s+/g, "").replace(/[\\/:*?"<>|]/g, "");
+      CSV_다운로드(CSV_섹션(데이터.헤더, 데이터.행들), "분석결과_" + 안전제목 + "_" + 오늘날짜문자열() + ".csv");
+    }
+
+    // 필터바의 전체 CSV 버튼: 현재 필터 기준 6개 위젯 데이터를 섹션 구분과 함께 하나의 CSV로 내보낸다.
+    function 전체CSV다운로드() {
+      var 기준 = document.getElementById("분석기준").value;
+      var 기간_부터 = document.getElementById("분석기간_부터").value;
+      var 기간_까지 = document.getElementById("분석기간_까지").value;
+      var 섹션목록 = [
+        { 제목: "# KPI", id: "KPI" },
+        { 제목: "# 출시추이", id: "차트추이" },
+        { 제목: "# 분류비중", id: "차트히트맵" },
+        { 제목: "# 격차", id: "차트격차" },
+        { 제목: "# 볼륨상태", id: "차트볼륨" },
+        { 제목: "# 운영기간", id: "차트운영기간" }
+      ];
+      var 블록들 = 섹션목록.map(function (섹션) {
+        var 데이터 = 차트데이터[섹션.id];
+        if (!데이터 || !데이터.헤더) return 섹션.제목 + "\r\n(데이터 없음)";
+        return 섹션.제목 + "\r\n" + CSV_섹션(데이터.헤더, 데이터.행들);
+      });
+      var 기간표기 = (!기간_부터 && !기간_까지) ? "전체기간" : ((기간_부터 || "처음") + "~" + (기간_까지 || "현재"));
+      CSV_다운로드(블록들.join("\r\n\r\n"), "분석결과_" + 기준 + "_" + 기간표기 + "_" + 오늘날짜문자열() + ".csv");
     }
 
     초기화();
