@@ -558,7 +558,7 @@ function OpenAI_인사이트_호출(apiKey, model, prompt) {
       { role: "user", content: prompt }
     ],
     temperature: 0.4,
-    max_completion_tokens: 1024
+    max_completion_tokens: 4096
   };
 
   try {
@@ -592,8 +592,16 @@ function OpenAI_요청보내기(apiKey, payload) {
     throw new Error((body.error && body.error.message) || ("OpenAI 호출 실패 (HTTP " + code + ")"));
   }
 
-  var text = body.choices && body.choices[0] && body.choices[0].message && body.choices[0].message.content;
-  if (!text) throw new Error("OpenAI 응답에서 텍스트를 찾을 수 없습니다.");
+  var choice = body.choices && body.choices[0];
+  var text = choice && choice.message && choice.message.content;
+  if (!text) {
+    // gpt-5/o1류 추론 모델은 max_completion_tokens 예산을 추론 토큰에 먼저 쓰고,
+    // 남는 예산이 없으면 finish_reason="length"와 함께 빈 답변을 반환한다.
+    // 원인을 바로 알 수 있도록 finish_reason과 토큰 사용량을 오류 메시지에 남긴다.
+    var 사유 = choice && choice.finish_reason;
+    var 사용량 = body.usage ? JSON.stringify(body.usage) : "";
+    throw new Error("OpenAI 응답에서 텍스트를 찾을 수 없습니다. (finish_reason: " + 사유 + ", usage: " + 사용량 + ")");
+  }
   return text.trim();
 }
 
