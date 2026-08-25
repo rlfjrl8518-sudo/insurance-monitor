@@ -333,6 +333,19 @@
     }
     #분석결과정보 { font-size: 12px; color: var(--text-light); }
 
+    /* AI 인사이트 카드 */
+    .인사이트빈상태 { color: var(--text-light); font-size: 13px; padding: 10px 2px; }
+    .인사이트섹션 { margin-bottom: 14px; }
+    .인사이트섹션:last-child { margin-bottom: 0; }
+    .인사이트섹션제목 { font-size: 13px; font-weight: 700; margin: 0 0 6px; color: var(--text); }
+    .인사이트섹션 ul { margin: 0; padding-left: 18px; }
+    .인사이트섹션 li { font-size: 13px; line-height: 1.6; color: var(--text); margin-bottom: 4px; }
+    .인사이트섹션 li::marker { color: var(--accent); }
+    .인사이트섹션.제안 li::marker { color: var(--자사색, var(--accent)); }
+    .인사이트푸터 { font-size: 11px; color: var(--text-light); margin-top: 10px; }
+    #인사이트생성버튼[disabled] { opacity: .6; cursor: default; }
+    #인사이트상태텍스트 { font-size: 11px; color: var(--text-light); }
+
     #필터바 {
       background: #fff;
       border-bottom: 1px solid var(--border);
@@ -1016,6 +1029,19 @@
     </div>
 
     <div class="차트그리드">
+      <div class="차트박스 전체폭" id="인사이트카드">
+        <div class="차트박스헤더">
+          <h3>AI 인사이트</h3>
+          <div class="헤더우측">
+            <span id="인사이트상태텍스트"></span>
+            <button type="button" id="인사이트생성버튼" class="기간프리셋버튼" onclick="인사이트생성()">✨ 인사이트 생성</button>
+          </div>
+        </div>
+        <div id="인사이트본문">
+          <div class="인사이트빈상태">현재 필터 기준으로 AI 인사이트와 자사 광고 운영 제안을 생성해보세요.</div>
+        </div>
+      </div>
+
       <div class="차트박스 전체폭">
         <div class="차트박스헤더">
           <h3>요약 지표</h3>
@@ -1073,7 +1099,7 @@
 
       <div class="차트박스">
         <div class="차트박스헤더">
-          <h3 id="차트볼륨제목" data-기본제목="그룹별 소재 볼륨·상태 구성">그룹별 소재 볼륨·상태 구성</h3>
+          <h3 id="차트볼륨제목" data-기본제목="소재 볼륨·상태 구성">그룹별 소재 볼륨·상태 구성</h3>
           <div class="헤더우측">
             <button type="button" class="카드메뉴버튼" onclick="카드메뉴토글(this)">⋯</button>
             <div class="카드메뉴패널"><button type="button" onclick="차트결과다운로드('차트볼륨')">이 차트 데이터 CSV</button></div>
@@ -2270,6 +2296,7 @@
     var 분석자사그룹집합 = {};
     var 분석위젯ID목록 = ["차트추이", "차트히트맵", "차트격차", "차트볼륨", "차트운영기간"];
     var 분석리사이즈타이머 = null;
+    var 마지막인사이트 = null; // { 텍스트, 필터서명 } - AI 인사이트는 버튼 클릭 시에만 생성(자동 재호출 안 함)
 
     function 탭전환(탭이름) {
       현재탭 = 탭이름;
@@ -2646,6 +2673,7 @@
       차트_격차();
       차트_볼륨();
       차트_운영기간();
+      인사이트상태갱신();
     }
 
     // KPI 스트립: 총 소재 / 신규 / 운영중 / 종료 / 평균 운영일수 / 자사 점유율
@@ -2790,9 +2818,10 @@
       };
 
       var option = {
-        grid: { left: 50, right: 80, top: 36, bottom: 32, containLabel: true },
+        grid: { left: 50, right: 80, top: 40, bottom: 32, containLabel: true },
         tooltip: { trigger: "axis", axisPointer: { type: "line" } },
-        legend: (표시그룹.length >= 2) ? { top: 0, textStyle: { color: 분석CSS색("--text-light"), fontSize: 11 } } : { show: false },
+        // 시리즈가 많으면 범례가 여러 줄로 넘쳐 차트 플롯 영역과 겹치므로, 한 줄 스크롤 범례로 고정 높이를 유지한다.
+        legend: (표시그룹.length >= 2) ? { type: "scroll", top: 0, textStyle: { color: 분석CSS색("--text-light"), fontSize: 11 }, pageTextStyle: { color: 분석CSS색("--text-light") }, pageIconColor: 분석CSS색("--text-light"), pageIconInactiveColor: 분석CSS색("--border") } : { show: false },
         xAxis: { type: "category", data: 월목록, axisLine: { lineStyle: { color: 분석CSS색("--border") } }, axisLabel: { fontSize: 11, color: 분석CSS색("--text") } },
         yAxis: { type: "value", splitLine: { lineStyle: { color: 분석CSS색("--border") } }, axisLabel: { fontSize: 11, color: 분석CSS색("--text") } },
         series: series
@@ -2853,7 +2882,7 @@
             return y라벨[p.data[1]] + " · " + 분류목록[p.data[0]] + "<br/>" + p.data[3] + "건 (" + p.data[2] + "%)";
           }
         },
-        xAxis: { type: "category", data: 분류목록, splitArea: { show: true }, axisLabel: { fontSize: 11, color: 분석CSS색("--text") }, axisLine: { lineStyle: { color: 분석CSS색("--border") } } },
+        xAxis: { type: "category", data: 분류목록, splitArea: { show: true }, axisLabel: { fontSize: 11, color: 분석CSS색("--text"), interval: 0 }, axisLine: { lineStyle: { color: 분석CSS색("--border") } } },
         yAxis: { type: "category", data: y라벨, splitArea: { show: true }, axisLabel: { fontSize: 11, color: 분석CSS색("--text") }, axisLine: { lineStyle: { color: 분석CSS색("--border") } } },
         visualMap: {
           min: 0, max: 100, show: false, calculable: false,
@@ -2920,10 +2949,14 @@
       var 중립 = "#f0efec";
       var y항목 = 항목.slice().reverse();
 
+      // 막대 끝 라벨이 y축 그룹명 라벨과 겹치지 않도록, 축 범위를 최대 절대값보다 넉넉히 넓혀 라벨 공간을 확보한다.
+      var 최대절대값 = 항목.reduce(function (m, i) { return Math.max(m, Math.abs(i.격차)); }, 0);
+      var 축한계 = 최대절대값 > 0 ? 최대절대값 * 1.4 : 5;
+
       var option = {
-        grid: { left: 120, right: 60, top: 10, bottom: 20, containLabel: true },
+        grid: { left: 130, right: 60, top: 10, bottom: 20, containLabel: true },
         tooltip: { formatter: function (p) { return p.name + "<br/>" + (p.value >= 0 ? "+" : "") + p.value + "%p"; } },
-        xAxis: { type: "value", axisLine: { lineStyle: { color: 분석CSS색("--border") } }, splitLine: { lineStyle: { color: 분석CSS색("--border") } }, axisLabel: { color: 분석CSS색("--text-light"), fontSize: 11 } },
+        xAxis: { type: "value", min: -축한계, max: 축한계, axisLine: { lineStyle: { color: 분석CSS색("--border") } }, splitLine: { lineStyle: { color: 분석CSS색("--border") } }, axisLabel: { color: 분석CSS색("--text-light"), fontSize: 11 } },
         yAxis: { type: "category", data: y항목.map(function (i) { return i.분류값; }), axisLabel: { fontSize: 11, color: 분석CSS색("--text") }, axisLine: { lineStyle: { color: 분석CSS색("--border") } } },
         series: [{
           type: "bar",
@@ -3010,7 +3043,7 @@
             return g + " (총 " + ((정렬.카운트[g]) || 0) + "건)<br/>" + lines.join("<br/>");
           }
         },
-        legend: { top: 0, textStyle: { color: 분석CSS색("--text-light"), fontSize: 11 } },
+        legend: { type: "scroll", top: 0, textStyle: { color: 분석CSS색("--text-light"), fontSize: 11 }, pageTextStyle: { color: 분석CSS색("--text-light") }, pageIconColor: 분석CSS색("--text-light"), pageIconInactiveColor: 분석CSS색("--border") },
         xAxis: { type: "value", axisLine: { lineStyle: { color: 분석CSS색("--border") } }, splitLine: { lineStyle: { color: 분석CSS색("--border") } }, axisLabel: { color: 분석CSS색("--text-light"), fontSize: 11 } },
         yAxis: { type: "category", data: y표시, axisLabel: { fontSize: 11, color: 분석CSS색("--text") }, axisLine: { lineStyle: { color: 분석CSS색("--border") } } },
         series: series
@@ -3081,7 +3114,7 @@
       var option = {
         grid: { left: 150, right: 20, top: 30, bottom: 20, containLabel: true },
         tooltip: { trigger: "axis", axisPointer: { type: "shadow" } },
-        legend: { top: 0, textStyle: { color: 분석CSS색("--text-light"), fontSize: 11 }, data: 분석운영일수구간.map(function (b) { return b.label; }) },
+        legend: { type: "scroll", top: 0, textStyle: { color: 분석CSS색("--text-light"), fontSize: 11 }, pageTextStyle: { color: 분석CSS색("--text-light") }, pageIconColor: 분석CSS색("--text-light"), pageIconInactiveColor: 분석CSS색("--border"), data: 분석운영일수구간.map(function (b) { return b.label; }) },
         xAxis: { type: "value", max: 100, axisLabel: { formatter: "{value}%", color: 분석CSS색("--text-light"), fontSize: 11 }, axisLine: { lineStyle: { color: 분석CSS색("--border") } }, splitLine: { lineStyle: { color: 분석CSS색("--border") } } },
         yAxis: { type: "category", data: y표시, axisLabel: { fontSize: 11, color: 분석CSS색("--text") }, axisLine: { lineStyle: { color: 분석CSS색("--border") } } },
         series: series
@@ -3104,16 +3137,19 @@
       분석히트맵분류 = 값;
       document.querySelectorAll("#히트맵분류세그먼트 .세그먼트버튼").forEach(function (b) { b.classList.toggle("활성", b.dataset.값 === 값); });
       차트_히트맵();
+      인사이트상태갱신();
     }
     function 격차분류변경(값) {
       분석격차분류 = 값;
       document.querySelectorAll("#격차분류세그먼트 .세그먼트버튼").forEach(function (b) { b.classList.toggle("활성", b.dataset.값 === 값); });
       차트_격차();
+      인사이트상태갱신();
     }
     function 추이모드변경(값) {
       분석추이모드 = 값;
       document.querySelectorAll("#추이모드세그먼트 .세그먼트버튼").forEach(function (b) { b.classList.toggle("활성", b.dataset.값 === 값); });
       차트_추이();
+      인사이트상태갱신();
     }
 
     // 분석 차트 클릭 -> 갤러리 탭으로 전환 + 조건 주입 + 필터적용() 호출 (갤러리 함수 재사용, 시그니처는 건드리지 않는다)
@@ -3163,6 +3199,140 @@
     function 드릴다운배너닫기() {
       var 배너 = document.getElementById("분석드릴다운배너");
       if (배너) 배너.classList.remove("보임");
+    }
+
+    // ===== AI 인사이트 =====
+
+    // 이미 화면에 계산되어 있는 KPI/격차/볼륨/운영기간 수치만 추려 AI에 보낼 요약을 만든다.
+    // (AI가 통계를 직접 계산하게 하지 않고, 계산은 클라이언트에서 끝낸 결과만 근거로 서술하게 한다.)
+    function 인사이트요약생성() {
+      var 기준 = document.getElementById("분석기준").value;
+      var 기간_부터 = document.getElementById("분석기간_부터").value || null;
+      var 기간_까지 = document.getElementById("분석기간_까지").value || null;
+
+      var kpi맵 = {};
+      ((차트데이터.KPI && 차트데이터.KPI.행들) || []).forEach(function (r) { kpi맵[r[0]] = r[1]; });
+
+      var 격차상위 = ((차트데이터.차트격차 && 차트데이터.차트격차.행들) || []).slice(0, 5).map(function (r) {
+        return { 분류값: r[0], "격차(%p, 자사-경쟁)": r[1] };
+      });
+
+      var 볼륨상위 = ((차트데이터.차트볼륨 && 차트데이터.차트볼륨.행들) || []).slice(0, 6).map(function (r) {
+        return { 그룹: r[0], 신규: r[1], 운영중: r[2], 종료: r[3], 합계: r[4] };
+      });
+
+      return {
+        비교기준: 기준 === "카테고리" ? "카테고리별" : "그룹별",
+        기간: (기간_부터 || 기간_까지) ? ((기간_부터 || "처음") + "~" + (기간_까지 || "현재")) : "전체 기간",
+        분류축: 분석격차분류,
+        KPI: kpi맵,
+        "자사_vs_경쟁_격차_상위(분류축 기준)": 격차상위,
+        그룹별_볼륨_상위: 볼륨상위,
+        그룹별_운영기간_분포_상위: ((차트데이터.차트운영기간 && 차트데이터.차트운영기간.행들) || []).slice(0, 6)
+      };
+    }
+
+    function 필터서명계산() {
+      return JSON.stringify(인사이트요약생성());
+    }
+
+    // 필터가 바뀌었는데 이전에 생성한 인사이트가 남아있으면, 최신 데이터와 다를 수 있다고 안내한다.
+    // (자동 재생성은 하지 않는다 - 호출마다 AI API 비용이 발생하므로 버튼 클릭 시에만 생성.)
+    function 인사이트상태갱신() {
+      var 상태 = document.getElementById("인사이트상태텍스트");
+      if (!상태) return;
+      if (!마지막인사이트) { 상태.textContent = ""; return; }
+      상태.textContent = (필터서명계산() === 마지막인사이트.필터서명)
+        ? "방금 생성됨"
+        : "필터가 바뀌었어요 · 다시 생성해보세요";
+    }
+
+    function 인사이트생성() {
+      if (!분석필터데이터.length) { alert("분석 대상 데이터가 없습니다."); return; }
+
+      var 버튼 = document.getElementById("인사이트생성버튼");
+      var 상태 = document.getElementById("인사이트상태텍스트");
+      var 본문 = document.getElementById("인사이트본문");
+      버튼.disabled = true;
+      상태.textContent = "생성 중...";
+      본문.innerHTML = '<div class="차트스켈레톤" style="height:90px;"></div>';
+
+      var 요약 = 인사이트요약생성();
+      var 서명 = JSON.stringify(요약);
+
+      google.script.run
+        .withSuccessHandler(function (결과) {
+          버튼.disabled = false;
+          if (결과 && 결과.success) {
+            마지막인사이트 = { 텍스트: 결과.text, 필터서명: 서명 };
+            인사이트렌더링(결과.text);
+            상태.textContent = "방금 생성됨";
+          } else {
+            상태.textContent = "";
+            본문.innerHTML = '<div class="인사이트빈상태">생성 실패: ' + ((결과 && 결과.error) || "알 수 없는 오류") + '</div>';
+          }
+        })
+        .withFailureHandler(function (오류) {
+          버튼.disabled = false;
+          상태.textContent = "";
+          본문.innerHTML = '<div class="인사이트빈상태">생성 실패: ' + 오류.message + '</div>';
+        })
+        .분석인사이트_생성(요약);
+    }
+
+    // AI 응답을 "[섹션 제목]" + "- 불릿" 형식으로 파싱한다. 형식이 어긋나면 통째로 평문 표시.
+    function 인사이트텍스트파싱(텍스트) {
+      var 줄들 = String(텍스트 || "").split("\n").map(function (s) { return s.trim(); }).filter(function (s) { return s; });
+      var 섹션들 = [];
+      var 현재 = null;
+      줄들.forEach(function (줄) {
+        var 헤더매치 = /^\[(.+)\]$/.exec(줄);
+        if (헤더매치) {
+          현재 = { 제목: 헤더매치[1], 항목들: [] };
+          섹션들.push(현재);
+          return;
+        }
+        if (!현재) return;
+        현재.항목들.push(줄.replace(/^[-•]\s*/, ""));
+      });
+      return 섹션들.filter(function (s) { return s.항목들.length; });
+    }
+
+    function 인사이트렌더링(텍스트) {
+      var 본문 = document.getElementById("인사이트본문");
+      본문.innerHTML = "";
+      var 섹션들 = 인사이트텍스트파싱(텍스트);
+
+      if (!섹션들.length) {
+        var pre = document.createElement("div");
+        pre.className = "인사이트섹션";
+        pre.style.whiteSpace = "pre-wrap";
+        pre.textContent = String(텍스트 || "").replace(/\*\*/g, "");
+        본문.appendChild(pre);
+        return;
+      }
+
+      섹션들.forEach(function (섹션) {
+        var wrap = document.createElement("div");
+        wrap.className = "인사이트섹션" + (섹션.제목.indexOf("제안") !== -1 ? " 제안" : "");
+        var 제목 = document.createElement("div");
+        제목.className = "인사이트섹션제목";
+        제목.textContent = 섹션.제목;
+        var ul = document.createElement("ul");
+        섹션.항목들.forEach(function (문장) {
+          var li = document.createElement("li");
+          li.textContent = 문장.replace(/\*\*/g, "");
+          ul.appendChild(li);
+        });
+        wrap.appendChild(제목);
+        wrap.appendChild(ul);
+        본문.appendChild(wrap);
+      });
+
+      var 푸터 = document.createElement("div");
+      푸터.className = "인사이트푸터";
+      푸터.textContent = "AI가 현재 필터 기준 데이터를 바탕으로 생성했습니다 · 참고용으로만 활용하세요.";
+      본문.appendChild(푸터);
     }
 
     // CSV 필드 값을 RFC 4180 규칙에 맞게 인용 처리한다.

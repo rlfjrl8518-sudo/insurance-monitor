@@ -432,6 +432,123 @@ function doPost(e) {
   }
 }
 
+/** 분석 탭에서 계산한 요약 통계(요약)를 근거로 AI 인사이트/운영 제안 텍스트를 생성한다.
+ *
+ * "AI설정" 시트에 이미 등록된 Gemini/OpenAI 키를 그대로 재사용한다(분류용 키와 동일).
+ * AI가 새 수치를 지어내지 않도록, 통계 계산은 클라이언트(분석 탭)에서 이미 끝낸 뒤
+ * 결과 숫자만 프롬프트에 담아 보낸다.
+ */
+function 분석인사이트_생성(요약) {
+  var ai = AI설정_가져오기();
+  var provider = ai.ai_provider || "gemini";
+  var apiKey = provider === "openai" ? ai.openai_api_key : ai.gemini_api_key;
+
+  if (!apiKey) {
+    return {
+      success: false,
+      error: "설정 > AI 분류 설정에서 " + (provider === "openai" ? "OpenAI" : "Gemini") + " API 키를 먼저 등록해주세요."
+    };
+  }
+
+  var prompt = 인사이트_프롬프트_생성(요약);
+
+  try {
+    var text = provider === "openai"
+      ? OpenAI_인사이트_호출(apiKey, ai.openai_model || "gpt-4o", prompt)
+      : Gemini_인사이트_호출(apiKey, ai.gemini_model || "gemini-2.5-flash", prompt);
+    return { success: true, text: text };
+  } catch (err) {
+    return { success: false, error: err.toString() };
+  }
+}
+
+/** 인사이트 생성 프롬프트를 만든다. 출력 형식을 고정해 클라이언트에서 파싱하기 쉽게 한다. */
+function 인사이트_프롬프트_생성(요약) {
+  return [
+    "당신은 보험업종 디지털 마케팅 팀의 경쟁사 광고 소재 분석가입니다.",
+    "아래는 경쟁사 디스플레이 광고(DA) 모니터링 대시보드에서 이미 계산된 요약 통계(JSON)입니다.",
+    "이 수치만 근거로, 자사 담당자가 바로 참고할 핵심 인사이트와 광고 운영 제안을 작성하세요.",
+    "",
+    "규칙:",
+    "- 반드시 한국어로만 작성한다.",
+    "- 주어진 JSON에 없는 수치나 사실을 지어내지 않는다.",
+    "- 마크다운 굵게(**) 등 서식 문자를 쓰지 않고 평문으로 작성한다.",
+    "- 아래 출력 형식을 정확히 지킨다(대괄호 제목 + 하이픈 불릿).",
+    "- [핵심 인사이트]에는 데이터에서 두드러지는 자사-경쟁 차이나 추세를 3~4개, 각 1~2문장, 반드시 수치를 인용해 작성.",
+    "- [자사 광고 운영 제안]에는 위 인사이트에 대응하는 구체적 실행 제안을 2~3개, 각 1~2문장으로 작성.",
+    "",
+    "출력 형식 예시:",
+    "[핵심 인사이트]",
+    "- ...",
+    "[자사 광고 운영 제안]",
+    "- ...",
+    "",
+    "데이터:",
+    JSON.stringify(요약)
+  ].join("\n");
+}
+
+/** Gemini generateContent REST API를 호출해 생성된 텍스트를 반환한다. 실패 시 예외를 던진다. */
+function Gemini_인사이트_호출(apiKey, model, prompt) {
+  var url = "https://generativelanguage.googleapis.com/v1beta/models/" + encodeURIComponent(model) +
+    ":generateContent?key=" + encodeURIComponent(apiKey);
+  var payload = {
+    contents: [{ role: "user", parts: [{ text: prompt }] }],
+    generationConfig: { temperature: 0.4, maxOutputTokens: 1024 }
+  };
+
+  var res = UrlFetchApp.fetch(url, {
+    method: "post",
+    contentType: "application/json",
+    payload: JSON.stringify(payload),
+    muteHttpExceptions: true
+  });
+
+  var code = res.getResponseCode();
+  var body = JSON.parse(res.getContentText() || "{}");
+  if (code < 200 || code >= 300) {
+    throw new Error((body.error && body.error.message) || ("Gemini 호출 실패 (HTTP " + code + ")"));
+  }
+
+  var candidate = body.candidates && body.candidates[0];
+  var parts = candidate && candidate.content && candidate.content.parts;
+  var text = parts ? parts.map(function (p) { return p.text || ""; }).join("") : "";
+  if (!text) throw new Error("Gemini 응답에서 텍스트를 찾을 수 없습니다.");
+  return text.trim();
+}
+
+/** OpenAI chat/completions REST API를 호출해 생성된 텍스트를 반환한다. 실패 시 예외를 던진다. */
+function OpenAI_인사이트_호출(apiKey, model, prompt) {
+  var url = "https://api.openai.com/v1/chat/completions";
+  var payload = {
+    model: model,
+    messages: [
+      { role: "system", content: "당신은 보험업종 디지털 마케팅 광고 소재 분석가입니다." },
+      { role: "user", content: prompt }
+    ],
+    temperature: 0.4,
+    max_tokens: 1024
+  };
+
+  var res = UrlFetchApp.fetch(url, {
+    method: "post",
+    contentType: "application/json",
+    headers: { Authorization: "Bearer " + apiKey },
+    payload: JSON.stringify(payload),
+    muteHttpExceptions: true
+  });
+
+  var code = res.getResponseCode();
+  var body = JSON.parse(res.getContentText() || "{}");
+  if (code < 200 || code >= 300) {
+    throw new Error((body.error && body.error.message) || ("OpenAI 호출 실패 (HTTP " + code + ")"));
+  }
+
+  var text = body.choices && body.choices[0] && body.choices[0].message && body.choices[0].message.content;
+  if (!text) throw new Error("OpenAI 응답에서 텍스트를 찾을 수 없습니다.");
+  return text.trim();
+}
+
 /** "수동추가" 시트의 최근 요청 내역(최대 20건, 최신순)을 반환한다. */
 function 수동추가_목록_가져오기() {
   var sheet = 수동추가_시트_가져오기();
