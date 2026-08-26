@@ -9,6 +9,8 @@
 
 import os
 import re
+import unicodedata
+from collections import Counter
 from urllib.parse import urlencode
 
 from playwright.sync_api import sync_playwright
@@ -27,7 +29,10 @@ JS_카드_추출 = """
     for (const img of profileImgs) {
         let el = img;
         let cardEl = null;
-        for (let i = 0; i < 12; i++) {
+        // 같은 광고에 여러 크리에이티브 버전이 있는 카드("요약 세부 사항 보기")는
+        // 그룹 래퍼가 한 겹 더 있어 조상 탐색 깊이가 더 필요할 수 있으므로 여유를 둔다
+        // (게재량이 많은 광고주일수록 이런 그룹 카드 비중이 높아 12단계에서는 놓치기 쉬웠음).
+        for (let i = 0; i < 20; i++) {
             el = el.parentElement;
             if (!el) break;
             if (el.innerText && el.innerText.includes('라이브러리 ID:')) {
@@ -78,6 +83,19 @@ CTA_버튼_문구 = {
     "Get Quote", "Download", "다운로드", "예약하기", "문의하기", "지금 구매하기",
     "Send Message", "Get Offer", "Watch More", "더보기", "양식 보기",
 }
+
+
+공백_정규식 = re.compile(r"\s+")
+
+
+def 페이지명_정규화(이름):
+    """페이지명 비교용으로 공백 종류(일반 공백/줄바꿈/NBSP 등)와 개수 차이를 무시하도록 정규화한다.
+
+    Meta 라이브러리가 같은 페이지의 이름을 스크랩마다 일반 공백/NBSP 등으로 다르게
+    렌더링하는 경우가 있어, 설정에 등록한 광고주명과 실제 페이지명이 눈으로는 같아
+    보여도 순수 문자열 비교(==)에서는 계속 불일치로 빠지는 문제가 있었다.
+    """
+    return 공백_정규식.sub(" ", unicodedata.normalize("NFKC", 이름 or "")).strip()
 
 
 def 검색_URL_생성(광고주명, 설정):
@@ -264,14 +282,21 @@ def 광고주_광고_수집(page, 광고주명, 설정, 진행_콜백=print):
     결과 = []
     수집된_library_id = set()
     페이지명_불일치_수 = 0
+    불일치_페이지명_집계 = Counter()
+    목표_페이지명 = 페이지명_정규화(광고주명)
     for 카드 in 원본_카드_목록:
         if not 카드.get("imageUrl"):
             continue
 
-        # 설정 시트 검색어(광고주명)와 실제 페이지명이 정확히 일치하지 않으면 제외
+        # 설정 시트 검색어(광고주명)와 실제 페이지명이 일치하지 않으면 제외
         # (예: "삼성화재" 검색 시 "삼성화재다이렉트", "삼성화재생명" 등은 수집하지 않음)
-        if 카드.get("pageName", "").strip() != 광고주명:
+        # 공백 종류/개수 차이는 페이지명_정규화로 무시하되, 그 외의 실질적인 이름
+        # 차이(다른 페이지)는 여전히 걸러낸다.
+        실제_페이지명 = 카드.get("pageName", "").strip()
+        if 페이지명_정규화(실제_페이지명) != 목표_페이지명:
             페이지명_불일치_수 += 1
+            if 실제_페이지명:
+                불일치_페이지명_집계[실제_페이지명] += 1
             continue
 
         library_id, 시작일, 광고텍스트 = 카드_텍스트_파싱(카드["text"], 카드["pageName"])
@@ -295,5 +320,11 @@ def 광고주_광고_수집(page, 광고주명, 설정, 진행_콜백=print):
 
     if 페이지명_불일치_수:
         진행_콜백(f"  페이지명 불일치로 제외된 카드 수: {페이지명_불일치_수}")
+        # 실제로 어떤 페이지명이 제외됐는지 남겨서, 검색어를 잘못 등록해 광고주의
+        # 진짜 페이지명이 계속 누락되는 경우를 다음 로그에서 바로 찾을 수 있게 한다.
+        상위_불일치 = 불일치_페이지명_집계.most_common(5)
+        if 상위_불일치:
+            요약 = ", ".join(f"'{이름}'({횟수}건)" for 이름, 횟수 in 상위_불일치)
+            진행_콜백(f"  제외된 페이지명 상위: {요약}")
 
     return 결과
