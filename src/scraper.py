@@ -261,7 +261,11 @@ def 광고주_광고_수집(page, 광고주명, 설정, 진행_콜백=print):
     정지_사유 = "최대 스크롤 횟수 도달"
     for i in range(최대_스크롤_횟수):
         실제_스크롤_횟수 = i + 1
+        # 마우스 휠 스크롤(기존 방식, 실제로 카드를 늘려온다는 게 로그로 확인됨)에
+        # 더해, 문서 자체가 스크롤 컨테이너인 경우까지 커버하도록 "그 시점의 문서
+        # 맨 아래"로도 스크롤한다. 둘 중 실제로 반응하는 쪽이 지연 로딩을 트리거한다.
         page.mouse.wheel(0, 4000)
+        page.evaluate("() => window.scrollTo(0, document.body.scrollHeight)")
         page.wait_for_timeout(스크롤_대기)
         원본_카드_목록.extend(page.evaluate(JS_카드_추출))
 
