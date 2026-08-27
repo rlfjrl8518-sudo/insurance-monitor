@@ -89,6 +89,21 @@ def 설정_불러오기(설정_경로=기본_설정_경로):
     return 설정
 
 
+def 페이지ID_저장(광고주명, 페이지ID, 설정_경로=기본_설정_경로):
+    """수집 중 학습한 페이스북 페이지ID를 config.json의 advertiser_page_ids에 저장한다.
+
+    설정_불러오기()가 반환한 메모리상 설정 객체(API 키 등 환경변수 값이 섞여
+    들어가 있음)를 그대로 다시 쓰면 비밀값이 파일에 새어나가므로, 파일을 직접
+    다시 읽어 이 키만 갱신한다.
+    """
+    with open(설정_경로, "r", encoding="utf-8") as f:
+        원본 = json.load(f)
+    원본.setdefault("advertiser_page_ids", {})[광고주명] = 페이지ID
+    with open(설정_경로, "w", encoding="utf-8") as f:
+        json.dump(원본, f, ensure_ascii=False, indent=2)
+        f.write("\n")
+
+
 def 경로_절대화(상대경로, 설정_경로=기본_설정_경로):
     """config.json의 상대 경로(data/ads.csv 등)를 프로젝트 루트 기준 절대 경로로 변환한다."""
     프로젝트_루트 = os.path.dirname(os.path.abspath(설정_경로))

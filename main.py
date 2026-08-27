@@ -8,7 +8,7 @@ import json
 
 from playwright.sync_api import sync_playwright
 
-from src.config_loader import 경로_절대화, 설정_불러오기
+from src.config_loader import 경로_절대화, 설정_불러오기, 페이지ID_저장
 from src.csv_store import CSV_쓰기, CSV_읽기, 광고ID_생성, 데이터_병합, 단일_광고_추가_또는_갱신, 오늘_KST
 from src.scraper import 광고_상세_조회, 광고주_광고_수집, 이미지_다운로드, 이미지_확장자_추출
 from src.sheets_sync import 구글_인증, 설정_동적_적용, 수동추가_대기목록_가져오기, 수동추가_상태_갱신
@@ -102,10 +102,19 @@ def 실행():
         browser = p.chromium.launch(headless=설정["scraping"]["headless"])
         page = browser.new_page(locale="ko-KR")
 
+        페이지ID_매핑 = 설정.get("advertiser_page_ids", {})
+
         for 광고주명 in 설정["advertisers"]:
             구분 = "자사" if 광고주명 == 설정.get("own_company") else "경쟁사"
             print(f"\n[{광고주명}] ({구분}) 수집 중...")
-            원본_목록 = 광고주_광고_수집(page, 광고주명, 설정)
+            원본_목록, 학습된_페이지ID = 광고주_광고_수집(
+                page, 광고주명, 설정, 알려진_페이지ID=페이지ID_매핑.get(광고주명),
+            )
+
+            if 학습된_페이지ID and 페이지ID_매핑.get(광고주명) != 학습된_페이지ID:
+                페이지ID_매핑[광고주명] = 학습된_페이지ID
+                페이지ID_저장(광고주명, 학습된_페이지ID)
+                print(f"  -> 페이지ID 학습 저장: {학습된_페이지ID}")
 
             if not 원본_목록:
                 # 카드가 0건 추출된 경우, 일시적인 차단/오류로 보고 이번 회차는 건너뛴다.

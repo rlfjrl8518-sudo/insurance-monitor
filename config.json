@@ -1,5 +1,6 @@
 {
   "own_company": "한화손보",
+  "advertiser_page_ids": {},
   "advertiser_categories": {
     "손해보험": ["삼성화재", "DB손해보험", "KB손해보험", "현대해상", "메리츠화재"],
     "생명보험": [],
