@@ -269,14 +269,11 @@ function 광고주그룹_저장(광고주그룹) {
   sheet.getRange(1, 1, 데이터.length, 그룹명목록.length).setValues(데이터);
 }
 
-/** "AI설정" 시트에서 AI 프로바이더/API키/모델 설정을 읽어온다. */
+/** "AI설정" 시트에서 NVIDIA API 키/모델 설정을 읽어온다. */
 function AI설정_가져오기() {
   var 기본값 = {
-    ai_provider: "gemini",
-    gemini_api_key: "",
-    gemini_model: "gemini-2.5-flash",
-    openai_api_key: "",
-    openai_model: "gpt-4o"
+    nvidia_api_key: "",
+    nvidia_model: "deepseek-ai/deepseek-v4-flash-0731"
   };
 
   var sheet = 시트_가져오기(시트이름_AI설정);
@@ -289,15 +286,12 @@ function AI설정_가져오기() {
   }
 
   return {
-    ai_provider: 시트값.ai_provider || 기본값.ai_provider,
-    gemini_api_key: 시트값.gemini_api_key || 기본값.gemini_api_key,
-    gemini_model: 시트값.gemini_model || 기본값.gemini_model,
-    openai_api_key: 시트값.openai_api_key || 기본값.openai_api_key,
-    openai_model: 시트값.openai_model || 기본값.openai_model
+    nvidia_api_key: 시트값.nvidia_api_key || 기본값.nvidia_api_key,
+    nvidia_model: 시트값.nvidia_model || 기본값.nvidia_model
   };
 }
 
-/** "AI설정" 시트에 AI 프로바이더/API키/모델 설정을 저장한다. */
+/** "AI설정" 시트에 NVIDIA API 키/모델 설정을 저장한다. */
 function AI설정_저장(설정) {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var sheet = ss.getSheetByName(시트이름_AI설정);
@@ -310,11 +304,8 @@ function AI설정_저장(설정) {
 
   var 데이터 = [
     ["키", "값"],
-    ["ai_provider", 설정.ai_provider || "gemini"],
-    ["gemini_api_key", 설정.gemini_api_key || ""],
-    ["gemini_model", 설정.gemini_model || "gemini-2.5-flash"],
-    ["openai_api_key", 설정.openai_api_key || ""],
-    ["openai_model", 설정.openai_model || "gpt-4o"]
+    ["nvidia_api_key", 설정.nvidia_api_key || ""],
+    ["nvidia_model", 설정.nvidia_model || "deepseek-ai/deepseek-v4-flash-0731"]
   ];
 
   sheet.getRange(1, 1, 데이터.length, 2).setValues(데이터);
@@ -434,28 +425,18 @@ function doPost(e) {
 
 /** 분석 탭에서 계산한 요약 통계(요약)를 근거로 AI 인사이트/운영 제안 텍스트를 생성한다.
  *
- * "AI설정" 시트에 이미 등록된 Gemini/OpenAI 키를 그대로 재사용한다(분류용 키와 동일).
+ * "AI설정" 시트에 등록된 NVIDIA 키를 그대로 재사용한다(분류용 키와 동일).
  * AI가 새 수치를 지어내지 않도록, 통계 계산은 클라이언트(분석 탭)에서 이미 끝낸 뒤
  * 결과 숫자만 프롬프트에 담아 보낸다.
  */
 function 분석인사이트_생성(요약) {
   var ai = AI설정_가져오기();
-  var provider = ai.ai_provider || "gemini";
-  var apiKey = provider === "openai" ? ai.openai_api_key : ai.gemini_api_key;
-
-  if (!apiKey) {
-    return {
-      success: false,
-      error: "설정 > AI 분류 설정에서 " + (provider === "openai" ? "OpenAI" : "Gemini") + " API 키를 먼저 등록해주세요."
-    };
+  if (!ai.nvidia_api_key) {
+    return { success: false, error: "설정 > AI 분류 설정에서 NVIDIA API 키를 먼저 등록해주세요." };
   }
 
-  var prompt = 인사이트_프롬프트_생성(요약);
-
   try {
-    var text = provider === "openai"
-      ? OpenAI_인사이트_호출(apiKey, ai.openai_model || "gpt-4o", prompt)
-      : Gemini_인사이트_호출(apiKey, ai.gemini_model || "gemini-2.5-flash", prompt);
+    var text = NVIDIA_인사이트_호출(ai.nvidia_api_key, ai.nvidia_model, 인사이트_프롬프트_생성(요약));
     return { success: true, text: text };
   } catch (err) {
     return { success: false, error: 권한오류_메시지변환(err) };
@@ -515,42 +496,14 @@ function 인사이트_프롬프트_생성(요약) {
   ].join("\n");
 }
 
-/** Gemini generateContent REST API를 호출해 생성된 텍스트를 반환한다. 실패 시 예외를 던진다. */
-function Gemini_인사이트_호출(apiKey, model, prompt) {
-  var url = "https://generativelanguage.googleapis.com/v1beta/models/" + encodeURIComponent(model) +
-    ":generateContent?key=" + encodeURIComponent(apiKey);
-  var payload = {
-    contents: [{ role: "user", parts: [{ text: prompt }] }],
-    generationConfig: { temperature: 0.4, maxOutputTokens: 1024 }
-  };
-
-  var res = UrlFetchApp.fetch(url, {
-    method: "post",
-    contentType: "application/json",
-    payload: JSON.stringify(payload),
-    muteHttpExceptions: true
-  });
-
-  var code = res.getResponseCode();
-  var body = JSON.parse(res.getContentText() || "{}");
-  if (code < 200 || code >= 300) {
-    throw new Error((body.error && body.error.message) || ("Gemini 호출 실패 (HTTP " + code + ")"));
-  }
-
-  var candidate = body.candidates && body.candidates[0];
-  var parts = candidate && candidate.content && candidate.content.parts;
-  var text = parts ? parts.map(function (p) { return p.text || ""; }).join("") : "";
-  if (!text) throw new Error("Gemini 응답에서 텍스트를 찾을 수 없습니다.");
-  return text.trim();
-}
-
-/** OpenAI chat/completions REST API를 호출해 생성된 텍스트를 반환한다. 실패 시 예외를 던진다.
+/** NVIDIA NIM chat/completions를 호출해 생성된 텍스트를 반환한다. 실패 시 예외를 던진다.
  *
- * gpt-5/o1 계열처럼 최신 모델은 max_tokens 대신 max_completion_tokens를 요구하고,
- * temperature 커스텀 값 자체를 거부하기도 한다. "Unsupported parameter" 오류가 나면
- * 해당 파라미터를 제거하고 한 번 더 시도해, 모델별 파라미터 차이를 흡수한다.
+ * NIM은 OpenAI 호환 규격이라 요청 형태는 같고 주소와 키만 다르다.
+ * thinking=false: 이 계열 모델은 기본적으로 눈에 보이지 않는 추론 토큰을 길게 뽑아
+ * 응답이 느려지고 예산을 다 써서 빈 답이 오기도 한다.
  */
-function OpenAI_인사이트_호출(apiKey, model, prompt) {
+function NVIDIA_인사이트_호출(apiKey, model, prompt) {
+  var url = "https://integrate.api.nvidia.com/v1/chat/completions";
   var payload = {
     model: model,
     messages: [
@@ -558,26 +511,10 @@ function OpenAI_인사이트_호출(apiKey, model, prompt) {
       { role: "user", content: prompt }
     ],
     temperature: 0.4,
-    max_completion_tokens: 4096
+    max_tokens: 4096,
+    chat_template_kwargs: { thinking: false }
   };
 
-  try {
-    return OpenAI_요청보내기(apiKey, payload);
-  } catch (err) {
-    var msg = err.toString();
-    // "Unsupported parameter: 'temperature'..." 형태와 "Unsupported value: 'temperature' does not
-    // support 0.4..." 형태를 모두 잡기 위해 "temperature" + "unsupported"만으로 넓게 판단한다.
-    if (/temperature/i.test(msg) && /unsupported/i.test(msg)) {
-      delete payload.temperature;
-      return OpenAI_요청보내기(apiKey, payload);
-    }
-    throw err;
-  }
-}
-
-/** OpenAI chat/completions에 실제 HTTP 요청을 보내고 응답 텍스트를 반환한다. */
-function OpenAI_요청보내기(apiKey, payload) {
-  var url = "https://api.openai.com/v1/chat/completions";
   var res = UrlFetchApp.fetch(url, {
     method: "post",
     contentType: "application/json",
@@ -589,18 +526,15 @@ function OpenAI_요청보내기(apiKey, payload) {
   var code = res.getResponseCode();
   var body = JSON.parse(res.getContentText() || "{}");
   if (code < 200 || code >= 300) {
-    throw new Error((body.error && body.error.message) || ("OpenAI 호출 실패 (HTTP " + code + ")"));
+    throw new Error((body.error && body.error.message) || ("NVIDIA 호출 실패 (HTTP " + code + ")"));
   }
 
   var choice = body.choices && body.choices[0];
   var text = choice && choice.message && choice.message.content;
   if (!text) {
-    // gpt-5/o1류 추론 모델은 max_completion_tokens 예산을 추론 토큰에 먼저 쓰고,
-    // 남는 예산이 없으면 finish_reason="length"와 함께 빈 답변을 반환한다.
-    // 원인을 바로 알 수 있도록 finish_reason과 토큰 사용량을 오류 메시지에 남긴다.
     var 사유 = choice && choice.finish_reason;
     var 사용량 = body.usage ? JSON.stringify(body.usage) : "";
-    throw new Error("OpenAI 응답에서 텍스트를 찾을 수 없습니다. (finish_reason: " + 사유 + ", usage: " + 사용량 + ")");
+    throw new Error("NVIDIA 응답에서 텍스트를 찾을 수 없습니다. (finish_reason: " + 사유 + ", usage: " + 사용량 + ")");
   }
   return text.trim();
 }

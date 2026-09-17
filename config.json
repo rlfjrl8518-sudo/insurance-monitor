@@ -10,14 +10,17 @@
     "보종": ["여성보험", "태아보험", "간병인보험", "주택화재", "골프플랜", "보장분석", "어린이보험", "암보험", "운전자보험", "치아보험", "펫보험", "자동차보험", "여행보험", "종합보험", "기타"],
     "소구포인트": ["시즌이슈", "정서유도", "가입유도", "경제적혜택", "대비유도", "상품신뢰"]
   },
-  "ai_provider": "openai",
-  "gemini": {
-    "api_key": "여기에_GEMINI_API_KEY_입력",
-    "model": "gemini-2.5-flash"
-  },
-  "openai": {
-    "api_key": "여기에_OPENAI_API_KEY_입력",
-    "model": "gpt-5-mini"
+  "nvidia": {
+    "api_key": "여기에_NVIDIA_API_KEY_입력",
+    "base_url": "https://integrate.api.nvidia.com/v1",
+    "model": "deepseek-ai/deepseek-v4-flash-0731",
+    "vision_model": "meta/llama-3.2-11b-vision-instruct",
+    "thinking": false,
+    "max_tokens": 2000,
+    "timeout": 150,
+    "vision_timeout": 60,
+    "max_retries": 4,
+    "동시_요청수": 6
   },
   "google_sheets": {
     "spreadsheet_id": "여기에_GOOGLE_SHEETS_ID_입력",

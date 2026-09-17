@@ -14,7 +14,8 @@
 """
 
 import os
-import signal
+import threading
+from concurrent.futures import ThreadPoolExecutor
 import tempfile
 import time
 import urllib.request
@@ -26,26 +27,8 @@ from src.sheets_sync import (
     구글_인증, 설정_시트_초기화, 워크시트_가져오기, 시트_동기화, 설정_동적_적용,
 )
 
-# API 호출 간 대기 시간(초). OpenAI 유료 키 기준으로 Gemini 무료티어보다 훨씬 여유있게 잡되,
-# 예기치 못한 레이트리밋을 피하기 위해 약간의 간격은 둔다.
-호출_간격_초 = 1.5
-
-# 연속으로 이 횟수만큼 실패하면 API 자체에 문제가 있는 것으로 보고 중단한다.
-연속_실패_허용_횟수 = 5
-
-# 한 건당 최대 대기 시간(초)
-호출_최대_대기_초 = 75
-
 # 몇 건마다 CSV에 중간 저장할지 (중간에 끊겨도 여기까지는 보존)
 체크포인트_간격 = 25
-
-
-class _호출_시간초과(Exception):
-    pass
-
-
-def _시간초과_핸들러(signum, frame):
-    raise _호출_시간초과()
 
 
 def _시트_이미지URL_맵_읽기(gc, 설정):
@@ -123,64 +106,65 @@ def 실행():
     대상_목록 = sorted(전체_데이터.keys())
 
     print("=" * 60)
-    print(f"전체 재분류 시작 [{설정.get('ai_provider')}] - 대상: {len(대상_목록)}건")
+    print(f"전체 재분류 시작 [{설정['nvidia']['model']}] - 대상: {len(대상_목록)}건")
     print(f"(시트에 기록된 드라이브 이미지 링크: {len(드라이브_맵)}건 확인)")
     print("=" * 60)
 
-    model = 모델_생성(설정)
+    client = 모델_생성(설정)
+    동시_요청수 = 설정["nvidia"].get("동시_요청수", 6)
+    print(f"동시 요청 {동시_요청수}개")
 
     방법별_건수 = {"로컬": 0, "드라이브": 0, "텍스트전용": 0}
     실패_목록 = []
-    임시_파일_목록 = []
+    임시_파일_목록 = []   # list.append는 GIL 덕에 스레드에서 그대로 써도 안전하다
     성공_개수 = 0
-    연속_실패_횟수 = 0
+    중단 = threading.Event()
+
+    def 한건(ad_id):
+        """이미지를 확보해 한 건 분류한다. 결과는 (ad_id, 방법, 결과, 오류)."""
+        if 중단.is_set():
+            return ad_id, "텍스트전용", None, "중단"
+        행 = 전체_데이터[ad_id]
+        try:
+            이미지_경로, 방법 = _이미지_경로_결정(행, ad_id, 이미지_폴더, 드라이브_맵, 임시_파일_목록)
+        except Exception as e:
+            return ad_id, "텍스트전용", None, e
+        try:
+            if 이미지_경로:
+                결과 = 광고_분류(client, 이미지_경로, 행["광고주"], 행["광고텍스트"], 설정)
+            else:
+                결과 = 광고_분류_텍스트전용(client, 행["광고주"], 행["광고텍스트"], 설정)
+            return ad_id, 방법, 결과, None
+        except Exception as e:
+            if type(e).__name__ in ("RateLimitError", "ResourceExhausted", "TooManyRequests"):
+                중단.set()
+            return ad_id, 방법, None, e
 
     try:
-        for i, ad_id in enumerate(대상_목록, start=1):
-            행 = 전체_데이터[ad_id]
-            이미지_경로, 방법 = _이미지_경로_결정(행, ad_id, 이미지_폴더, 드라이브_맵, 임시_파일_목록)
-            방법별_건수[방법] += 1
-
-            try:
-                if hasattr(signal, "SIGALRM"):
-                    signal.signal(signal.SIGALRM, _시간초과_핸들러)
-                    signal.alarm(호출_최대_대기_초)
-
-                if 이미지_경로:
-                    결과 = 광고_분류(model, 이미지_경로, 행["광고주"], 행["광고텍스트"], 설정)
+        with ThreadPoolExecutor(max_workers=동시_요청수) as 풀:
+            for i, (ad_id, 방법, 결과, 오류) in enumerate(풀.map(한건, 대상_목록), start=1):
+                방법별_건수[방법] += 1
+                if 결과:
+                    행 = 전체_데이터[ad_id]
+                    행["소재유형"] = 결과["소재유형"]
+                    행["보종"] = 결과["보종"]
+                    행["소구포인트"] = 결과["소구포인트"]
+                    행["요약"] = 결과["요약"]
+                    성공_개수 += 1
+                    print(f"[{i}/{len(대상_목록)}] ({방법}) {행['광고주']} / {ad_id} "
+                          f"-> {결과['소재유형']}/{결과['보종']}/{결과['소구포인트']}")
                 else:
-                    결과 = 광고_분류_텍스트전용(model, 행["광고주"], 행["광고텍스트"], 설정)
+                    실패_목록.append((ad_id, str(오류)))
+                    if 오류 != "중단":
+                        print(f"[{i}/{len(대상_목록)}] {ad_id} - 실패: {오류}")
 
-                행["소재유형"] = 결과["소재유형"]
-                행["보종"] = 결과["보종"]
-                행["소구포인트"] = 결과["소구포인트"]
-                행["요약"] = 결과["요약"]
-                성공_개수 += 1
-                연속_실패_횟수 = 0
-                print(f"[{i}/{len(대상_목록)}] ({방법}) {행['광고주']} / {ad_id} "
-                      f"-> {결과['소재유형']}/{결과['보종']}/{결과['소구포인트']}")
-            except _호출_시간초과:
-                print(f"[{i}/{len(대상_목록)}] {ad_id} - 시간 초과, 건너뜀")
-                실패_목록.append((ad_id, "시간초과"))
-                연속_실패_횟수 += 1
-            except Exception as e:
-                print(f"[{i}/{len(대상_목록)}] {ad_id} - 실패: {e}")
-                실패_목록.append((ad_id, str(e)))
-                연속_실패_횟수 += 1
-            finally:
-                if hasattr(signal, "SIGALRM"):
-                    signal.alarm(0)
+                if i % 체크포인트_간격 == 0:
+                    CSV_쓰기(csv_경로, 전체_데이터)
+                    print(f"  [체크포인트] {i}건까지 CSV 저장 완료")
 
-            if 연속_실패_횟수 >= 연속_실패_허용_횟수:
-                print(f"\n{연속_실패_허용_횟수}건 연속 실패 - API에 문제가 있는 것으로 보고 중단합니다.")
-                print("(지금까지 처리된 내용은 CSV에 저장됩니다. 원인 확인 후 다시 실행하면 이어서 진행됩니다.)")
-                break
-
-            if i % 체크포인트_간격 == 0:
-                CSV_쓰기(csv_경로, 전체_데이터)
-                print(f"  [체크포인트] {i}건까지 CSV 저장 완료")
-
-            time.sleep(호출_간격_초)
+        if 중단.is_set():
+            print("할당량 초과로 남은 건을 건너뛰었습니다.")
+            print("(지금까지 처리된 내용은 CSV에 저장됩니다. 다시 실행하면 이어서 진행됩니다.)")
     finally:
         CSV_쓰기(csv_경로, 전체_데이터)
         for 경로 in 임시_파일_목록:

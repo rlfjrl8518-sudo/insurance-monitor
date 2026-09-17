@@ -254,7 +254,7 @@ def 분류규칙_시트_초기화(gc, 설정):
     except gspread.WorksheetNotFound:
         pass
 
-    # classifier.py는 google-generativeai/openai에 의존하므로, 시트 동기화만 필요한
+    # classifier.py는 openai SDK에 의존하므로, 시트 동기화만 필요한
     # 최소 의존성 환경(예: push_to_sheet.yml)이 깨지지 않도록 여기서 지연 import한다.
     from src.classifier import (
         소재유형_분류_규칙 as 기본_소재유형_규칙,
@@ -342,18 +342,19 @@ def 설정_동적_적용(설정, 서비스계정_경로):
     if 시트설정["소구포인트"]:
         설정["classification"]["소구포인트"] = 시트설정["소구포인트"]
 
-    # 'AI설정' 시트에서 AI 프로바이더/API키 적용 (환경 변수가 있으면 환경 변수 우선)
+    # 'AI설정' 시트에서 API 키/모델 적용.
+    # 환경 변수가 있으면 언제나 환경 변수가 이긴다. 예전에는 모델명에만 이 가드가 없어서
+    # 시트에 남아 있는 옛 모델명(gpt-5-mini 등)이 config.json 값을 덮어쓰고,
+    # 로컬은 멀쩡한데 배포에서만 404가 나는 상황이 생겼다.
     ai설정 = AI설정_시트_읽기(gc, 설정)
-    if ai설정.get("ai_provider") and not os.environ.get("AI_PROVIDER"):
-        설정["ai_provider"] = ai설정["ai_provider"]
-    if ai설정.get("gemini_api_key") and not os.environ.get("GEMINI_API_KEY"):
-        설정["gemini"]["api_key"] = ai설정["gemini_api_key"]
-    if ai설정.get("gemini_model"):
-        설정["gemini"]["model"] = ai설정["gemini_model"]
-    if ai설정.get("openai_api_key") and not os.environ.get("OPENAI_API_KEY"):
-        설정.setdefault("openai", {})["api_key"] = ai설정["openai_api_key"]
-    if ai설정.get("openai_model"):
-        설정.setdefault("openai", {})["model"] = ai설정["openai_model"]
+    설정.setdefault("nvidia", {})
+    환경변수_키_있음 = os.environ.get("NVIDIA_API_KEY") or os.environ.get("OPENAI_API_KEY")
+    if ai설정.get("nvidia_api_key") and not 환경변수_키_있음:
+        설정["nvidia"]["api_key"] = ai설정["nvidia_api_key"]
+    if ai설정.get("nvidia_model") and not os.environ.get("NVIDIA_MODEL"):
+        설정["nvidia"]["model"] = ai설정["nvidia_model"]
+    if ai설정.get("nvidia_vision_model") and not os.environ.get("NVIDIA_VISION_MODEL"):
+        설정["nvidia"]["vision_model"] = ai설정["nvidia_vision_model"]
 
     return 설정
 

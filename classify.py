@@ -1,41 +1,26 @@
 """한화손해보험 경쟁사 메타 광고 소재 모니터링 - 2단계: AI 분류.
 
 CSV에 저장된 광고 중 아직 분류되지 않은(소재유형이 비어 있는) 광고에 대해
-설정된 AI(Gemini 또는 OpenAI)로 이미지+텍스트를 분석하여 소재유형/보종/소구포인트/요약을 채운다.
+NVIDIA NIM API로 이미지+텍스트를 분석하여 소재유형/보종/소구포인트/요약을 채운다.
 """
 
 import os
-import signal
-import time
+import threading
+from concurrent.futures import ThreadPoolExecutor
 
 from src.classifier import 모델_생성, 광고_분류
 from src.config_loader import 경로_절대화, 설정_불러오기
 from src.csv_store import CSV_쓰기, CSV_읽기
 from src.sheets_sync import 설정_동적_적용
 
-# API 호출 간 대기 시간(초) - 분당 호출 제한 대응
-# (Gemini 무료 티어 기준 6.5초였으나, 기본 프로바이더를 OpenAI로 전환하면서 완화)
-호출_간격_초 = 2.0
-
-# 연속으로 이 횟수만큼 실패하면 API 자체에 문제가 있는 것으로 보고 나머지는 건너뜀
-연속_실패_허용_횟수 = 3
-
-# 한 건당 최대 대기 시간(초) - SDK의 타임아웃이 적용되지 않는 환경(예: CI)에서도
-# 전체 실행이 멈추지 않도록 강제로 끊는다. (Windows에는 미적용)
-호출_최대_대기_초 = 75
-
-
-class _호출_시간초과(Exception):
-    pass
-
-
-def _시간초과_핸들러(signum, frame):
-    raise _호출_시간초과()
+# 한 건당 타임아웃은 설정(nvidia.timeout)에서 SDK에 직접 넘긴다.
+# 예전에는 SIGALRM으로 한 번 더 끊었으나, 병렬 처리에서는 메인 스레드에만 걸려
+# 의미가 없어 제거했다.
 
 
 def _할당량_초과_예외인가(e):
-    """Gemini(ResourceExhausted/TooManyRequests) 또는 OpenAI(RateLimitError) 할당량 초과 예외인지 확인한다."""
-    return type(e).__name__ in ("ResourceExhausted", "TooManyRequests", "RateLimitError")
+    """더 던져봐야 소용없는 할당량/레이트리밋 예외인지 확인한다."""
+    return type(e).__name__ in ("RateLimitError", "ResourceExhausted", "TooManyRequests")
 
 
 def 실행():
@@ -43,18 +28,10 @@ def 실행():
     서비스계정_경로 = 경로_절대화(설정["google_sheets"]["service_account_file"])
     설정 = 설정_동적_적용(설정, 서비스계정_경로)
 
-    provider = 설정.get("ai_provider", "gemini")
-
-    # API 키 유효성 검사
-    if provider == "openai":
-        openai_키 = 설정.get("openai", {}).get("api_key", "")
-        if not openai_키 or "여기에_" in openai_키:
-            print("OpenAI API 키가 설정되지 않았습니다. 대시보드 [설정 > AI 분류 설정]에서 API 키를 입력해주세요.")
-            return
-    else:
-        if "여기에_" in 설정["gemini"]["api_key"]:
-            print("config.json의 gemini.api_key를 설정한 뒤 다시 실행해주세요.")
-            return
+    nvidia_키 = 설정.get("nvidia", {}).get("api_key", "")
+    if not nvidia_키 or "여기에_" in nvidia_키:
+        print("NVIDIA API 키가 설정되지 않았습니다. .env의 NVIDIA_API_KEY를 채워주세요.")
+        return
 
     csv_경로 = 경로_절대화(설정["paths"]["csv_file"])
     이미지_폴더 = 경로_절대화(설정["paths"]["images_dir"])
@@ -71,8 +48,10 @@ def 실행():
     ]
     이미지없음_건수 = len(미분류_전체) - len(대상_목록)
 
+    동시_요청수 = 설정["nvidia"].get("동시_요청수", 6)
     print("=" * 60)
-    print(f"AI 분류 시작 [{provider}] - 분류 대상: {len(대상_목록)}건 / 전체: {len(전체_데이터)}건")
+    print(f"AI 분류 시작 [{설정['nvidia']['model']}] - 대상: {len(대상_목록)}건 / 전체: {len(전체_데이터)}건")
+    print(f"동시 요청 {동시_요청수}개")
     if 이미지없음_건수:
         print(f"(이미지 없어 건너뜀: {이미지없음_건수}건 - 종료된 광고 등)")
     print("=" * 60)
@@ -81,56 +60,40 @@ def 실행():
         print("분류가 필요한 광고가 없습니다.")
         return
 
-    model = 모델_생성(설정)
+    client = 모델_생성(설정)
+    # 할당량이 바닥나면 남은 건을 계속 던져봐야 전부 실패하므로 즉시 접는다.
+    중단 = threading.Event()
 
-    성공_개수 = 0
-    실패_개수 = 0
-    연속_실패_횟수 = 0
-
-    for i, 행 in enumerate(대상_목록, start=1):
+    def 한건(행):
+        if 중단.is_set():
+            return 행, None, "중단"
         이미지_경로 = os.path.join(이미지_폴더, 행["이미지파일명"])
-
         try:
-            if hasattr(signal, "SIGALRM"):
-                signal.signal(signal.SIGALRM, _시간초과_핸들러)
-                signal.alarm(호출_최대_대기_초)
-
-            결과 = 광고_분류(model, 이미지_경로, 행["광고주"], 행["광고텍스트"], 설정)
-            행["소재유형"] = 결과["소재유형"]
-            행["보종"] = 결과["보종"]
-            행["소구포인트"] = 결과["소구포인트"]
-            행["요약"] = 결과["요약"]
-            성공_개수 += 1
-            연속_실패_횟수 = 0
-            print(f"[{i}/{len(대상_목록)}] {행['광고주']} / {행['ad_id']} "
-                  f"-> 소재유형:{결과['소재유형']}, 보종:{결과['보종']}, "
-                  f"소구포인트:{결과['소구포인트']}")
-        except _호출_시간초과:
-            print(f"[{i}/{len(대상_목록)}] {행['ad_id']} - API 응답 시간 초과({호출_최대_대기_초}초), 건너뜀")
-            실패_개수 += 1
-            연속_실패_횟수 += 1
-            if 연속_실패_횟수 >= 연속_실패_허용_횟수:
-                print(f"{연속_실패_허용_횟수}건 연속 실패하여 남은 광고 분류를 건너뜁니다. (다음 실행에서 다시 시도합니다)")
-                실패_개수 += len(대상_목록) - i
-                break
+            return 행, 광고_분류(client, 이미지_경로, 행["광고주"], 행["광고텍스트"], 설정), None
         except Exception as e:
             if _할당량_초과_예외인가(e):
-                print(f"[{i}/{len(대상_목록)}] {행['ad_id']} - API 할당량 초과: {e}")
-                print("할당량이 초과되어 남은 광고 분류를 건너뜁니다. (다음 실행에서 다시 시도합니다)")
-                실패_개수 += len(대상_목록) - i + 1
-                break
-            print(f"[{i}/{len(대상_목록)}] {행['ad_id']} - 분류 실패: {e}")
-            실패_개수 += 1
-            연속_실패_횟수 += 1
-            if 연속_실패_횟수 >= 연속_실패_허용_횟수:
-                print(f"{연속_실패_허용_횟수}건 연속 실패하여 남은 광고 분류를 건너뜁니다. (다음 실행에서 다시 시도합니다)")
-                실패_개수 += len(대상_목록) - i
-                break
-        finally:
-            if hasattr(signal, "SIGALRM"):
-                signal.alarm(0)
+                중단.set()
+            return 행, None, e
 
-        time.sleep(호출_간격_초)
+    성공_개수 = 실패_개수 = 0
+    with ThreadPoolExecutor(max_workers=동시_요청수) as 풀:
+        for i, (행, 결과, 오류) in enumerate(풀.map(한건, 대상_목록), start=1):
+            if 결과:
+                행["소재유형"] = 결과["소재유형"]
+                행["보종"] = 결과["보종"]
+                행["소구포인트"] = 결과["소구포인트"]
+                행["요약"] = 결과["요약"]
+                성공_개수 += 1
+                print(f"[{i}/{len(대상_목록)}] {행['광고주']} / {행['ad_id']} "
+                      f"-> 소재유형:{결과['소재유형']}, 보종:{결과['보종']}, "
+                      f"소구포인트:{결과['소구포인트']}")
+            else:
+                실패_개수 += 1
+                if 오류 != "중단":
+                    print(f"[{i}/{len(대상_목록)}] {행['ad_id']} - 분류 실패: {오류}")
+
+    if 중단.is_set():
+        print("할당량이 초과되어 남은 광고는 건너뛰었습니다. (다음 실행에서 다시 시도합니다)")
 
     CSV_쓰기(csv_경로, 전체_데이터)
     print("\n" + "=" * 60)

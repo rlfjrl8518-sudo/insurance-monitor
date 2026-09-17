@@ -1,10 +1,11 @@
-"""Gemini 또는 OpenAI API로 광고 이미지+텍스트를 분석해 소재유형/보종/소구포인트/요약으로 분류하는 모듈."""
+"""NVIDIA NIM API로 광고 이미지+텍스트를 분석해 소재유형/보종/소구포인트/요약으로 분류하는 모듈."""
 
 import json
 
-import google.generativeai as genai
-
 분류_결과_키 = ["소재유형", "보종", "소구포인트", "요약"]
+
+# NVIDIA NIM은 OpenAI 호환 엔드포인트라 openai SDK로 그대로 호출한다.
+NVIDIA_기본_URL = "https://integrate.api.nvidia.com/v1"
 
 # 소재유형 분류 규칙
 소재유형_분류_규칙 = """[소재유형 분류 기준]
@@ -218,128 +219,108 @@ def _분류결과_검증(결과, 설정):
 
 
 def 모델_생성(설정):
-    """설정에 지정된 AI 프로바이더에 맞는 모델/클라이언트 인스턴스를 생성한다."""
-    provider = 설정.get("ai_provider", "gemini")
-    if provider == "openai":
-        from openai import OpenAI
-        return OpenAI(api_key=설정["openai"]["api_key"])
-    else:
-        # gRPC 전송 시 "Illegal header value" 오류가 발생하는 경우가 있어 REST 전송을 사용한다.
-        genai.configure(api_key=설정["gemini"]["api_key"], transport="rest")
-        return genai.GenerativeModel(설정["gemini"]["model"])
+    """NVIDIA NIM 클라이언트를 만든다 (OpenAI 호환 엔드포인트라 openai SDK를 그대로 쓴다)."""
+    from openai import OpenAI
+
+    nv = 설정["nvidia"]
+    # 무료 티어는 용량이 차면 503(Worker limit reached)을 자주 돌려주는데 잠시 뒤
+    # 재시도하면 대개 통과하므로 SDK 기본 재시도(2회)보다 넉넉히 준다.
+    return OpenAI(api_key=nv["api_key"],
+                  base_url=nv.get("base_url", NVIDIA_기본_URL),
+                  max_retries=nv.get("max_retries", 4))
 
 
-# 하위 호환성 유지용 별칭
-def Gemini_모델_생성(설정):
-    genai.configure(api_key=설정["gemini"]["api_key"], transport="rest")
-    return genai.GenerativeModel(설정["gemini"]["model"])
+def _호출옵션(설정):
+    """분류 호출에 붙는 공통 파라미터.
+
+    thinking=False: deepseek-v4-flash는 기본적으로 눈에 안 보이는 추론 토큰을 쏟아낸다.
+    실측상 끄면 건당 23.9초 -> 6.2초, 출력 326토큰 -> 60토큰이고 정확도는 떨어지지 않았다
+    (오히려 소구포인트가 조금 나아졌다). 모델을 바꿀 때는 이 값이 유효한지 다시 재 볼 것.
+    temperature=0: 같은 광고를 다시 돌렸을 때 분류가 흔들리는 것을 줄인다.
+    max_tokens: 추론을 켠 상태의 실측 최대가 1,008토큰이라 여유를 둔다.
+    timeout: 무료 티어는 같은 호출이 3초~120초를 오가므로 넉넉히 잡는다.
+    """
+    nv = 설정["nvidia"]
+    옵션 = {
+        "max_tokens": nv.get("max_tokens", 2000),
+        "temperature": 0,
+        "timeout": nv.get("timeout", 150),
+        "response_format": {"type": "json_object"},
+    }
+    if nv.get("thinking", False) is False:
+        옵션["extra_body"] = {"chat_template_kwargs": {"thinking": False}}
+    return 옵션
 
 
-def _Gemini_분류(model, 이미지_경로, 광고주, 광고텍스트, 설정):
-    확장자 = "." + 이미지_경로.rsplit(".", 1)[-1].lower()
-    mime_type = 확장자별_MIME.get(확장자, "image/jpeg")
-
-    with open(이미지_경로, "rb") as f:
-        이미지_바이트 = f.read()
-
-    프롬프트 = 분류_프롬프트_생성(광고주, 광고텍스트, 설정)
-
-    응답 = model.generate_content(
-        [
-            {"mime_type": mime_type, "data": 이미지_바이트},
-            프롬프트,
-        ],
-        generation_config={"response_mime_type": "application/json"},
-        # gemini-2.5-flash는 추론(thinking) 과정으로 응답이 길어질 수 있어 충분히 여유를 둔다.
-        request_options={"timeout": 60},
-    )
-
-    결과 = json.loads(응답.text)
-    return _분류결과_검증(결과, 설정)
+def _JSON_파싱(텍스트):
+    """response_format을 무시하고 ```json 펜스나 앞뒤 설명을 붙여 보내는 모델까지 처리한다."""
+    텍스트 = (텍스트 or "").strip()
+    try:
+        return json.loads(텍스트)
+    except json.JSONDecodeError:
+        시작, 끝 = 텍스트.find("{"), 텍스트.rfind("}")
+        if 시작 == -1 or 끝 <= 시작:
+            raise
+        return json.loads(텍스트[시작:끝 + 1])
 
 
-def _OpenAI_분류(client, 이미지_경로, 광고주, 광고텍스트, 설정):
+def _이미지_문구_읽기(client, 이미지_경로, 설정):
+    """vision_model로 이미지 속 문구만 뽑아낸다. 비어 있으면 None.
+
+    분류를 잘하는 모델과 이미지를 빠르게 읽는 모델이 서로 다르기 때문에 단계를 나눈다.
+    (분류 모델에 이미지를 직접 물리면 건당 90초를 넘어갔고, 전용 비전 모델에 OCR만
+    시키면 3초대에 끝난다.)
+    """
     import base64
 
+    nv = 설정["nvidia"]
     확장자 = "." + 이미지_경로.rsplit(".", 1)[-1].lower()
     mime_type = 확장자별_MIME.get(확장자, "image/jpeg")
-
     with open(이미지_경로, "rb") as f:
         이미지_base64 = base64.b64encode(f.read()).decode()
 
-    프롬프트 = 분류_프롬프트_생성(광고주, 광고텍스트, 설정)
-
     응답 = client.chat.completions.create(
-        model=설정["openai"]["model"],
+        model=nv["vision_model"],
         messages=[{
             "role": "user",
             "content": [
-                {
-                    "type": "image_url",
-                    "image_url": {"url": f"data:{mime_type};base64,{이미지_base64}"}
-                },
-                {"type": "text", "text": 프롬프트}
-            ]
+                {"type": "image_url",
+                 "image_url": {"url": f"data:{mime_type};base64,{이미지_base64}"}},
+                {"type": "text", "text": "이미지에 적힌 문구만 그대로 옮겨 적어라. 설명·해석·반복 금지."},
+            ],
         }],
-        response_format={"type": "json_object"},
-        # gpt-5 계열 추론 모델은 reasoning_effort를 지정하지 않으면 기본값(medium 이상으로
-        # 추정)으로 매 건마다 불필요하게 긴 추론을 해서 건당 지연/비용이 커진다.
-        # 단순 카테고리 분류라 'low'로 충분하고, max_completion_tokens로 상한을 둬
-        # 추론이 길어져도 한 건이 무한정 오래 걸리지 않게 한다.
-        reasoning_effort="low",
-        max_completion_tokens=800,
-        timeout=60,
+        max_tokens=300,
+        temperature=0,
+        timeout=nv.get("vision_timeout", 60),
     )
-
-    결과 = json.loads(응답.choices[0].message.content)
-    return _분류결과_검증(결과, 설정)
-
-
-def 광고_분류(client, 이미지_경로, 광고주, 광고텍스트, 설정):
-    """이미지 파일과 광고 텍스트를 AI에 전달하여 분류 결과(dict)를 반환한다.
-
-    설정의 ai_provider에 따라 Gemini 또는 OpenAI를 사용한다.
-    실패 시 예외를 발생시킨다.
-    """
-    provider = 설정.get("ai_provider", "gemini")
-    if provider == "openai":
-        return _OpenAI_분류(client, 이미지_경로, 광고주, 광고텍스트, 설정)
-    else:
-        return _Gemini_분류(client, 이미지_경로, 광고주, 광고텍스트, 설정)
+    문구 = (응답.choices[0].message.content or "").strip()
+    return 문구 or None
 
 
-def _Gemini_분류_텍스트전용(model, 광고주, 광고텍스트, 설정):
-    프롬프트 = 분류_프롬프트_생성(광고주, 광고텍스트, 설정)
-    응답 = model.generate_content(
-        [프롬프트],
-        generation_config={"response_mime_type": "application/json"},
-        request_options={"timeout": 60},
-    )
-    결과 = json.loads(응답.text)
-    return _분류결과_검증(결과, 설정)
-
-
-def _OpenAI_분류_텍스트전용(client, 광고주, 광고텍스트, 설정):
-    프롬프트 = 분류_프롬프트_생성(광고주, 광고텍스트, 설정)
-    응답 = client.chat.completions.create(
-        model=설정["openai"]["model"],
-        messages=[{"role": "user", "content": 프롬프트}],
-        response_format={"type": "json_object"},
-        reasoning_effort="low",
-        max_completion_tokens=800,
-        timeout=60,
-    )
-    결과 = json.loads(응답.choices[0].message.content)
-    return _분류결과_검증(결과, 설정)
+def _이미지문구_합치기(광고텍스트, 이미지문구):
+    if not 이미지문구:
+        return 광고텍스트
+    return f"{광고텍스트}\n\n[이미지에서 읽은 문구]\n{이미지문구}"
 
 
 def 광고_분류_텍스트전용(client, 광고주, 광고텍스트, 설정):
-    """이미지 없이 광고 텍스트만으로 분류한다 (이미지를 구할 수 없는 종료 소재용).
+    """이미지 없이 광고 텍스트만으로 분류한다. 실패 시 예외를 발생시킨다."""
+    응답 = client.chat.completions.create(
+        model=설정["nvidia"]["model"],
+        messages=[{"role": "user", "content": 분류_프롬프트_생성(광고주, 광고텍스트, 설정)}],
+        **_호출옵션(설정),
+    )
+    return _분류결과_검증(_JSON_파싱(응답.choices[0].message.content), 설정)
 
-    설정의 ai_provider에 따라 Gemini 또는 OpenAI를 사용한다. 실패 시 예외를 발생시킨다.
-    """
-    provider = 설정.get("ai_provider", "gemini")
-    if provider == "openai":
-        return _OpenAI_분류_텍스트전용(client, 광고주, 광고텍스트, 설정)
-    else:
-        return _Gemini_분류_텍스트전용(client, 광고주, 광고텍스트, 설정)
+
+def 광고_분류(client, 이미지_경로, 광고주, 광고텍스트, 설정):
+    """이미지에서 문구를 읽어 광고 텍스트에 합친 뒤 분류한다. 실패 시 예외를 발생시킨다."""
+    # 광고텍스트는 이미 수집돼 있으므로 이미지는 보강재다. OCR이 실패해도 그 건을
+    # 통째로 버리지 않고 텍스트만으로 분류한다 (무료 티어는 503/타임아웃이 잦다).
+    try:
+        이미지문구 = _이미지_문구_읽기(client, 이미지_경로, 설정)
+    except Exception as e:
+        print(f"    (이미지 읽기 실패 - 텍스트만으로 분류: {type(e).__name__})")
+        이미지문구 = None
+
+    return 광고_분류_텍스트전용(client, 광고주, _이미지문구_합치기(광고텍스트, 이미지문구), 설정)

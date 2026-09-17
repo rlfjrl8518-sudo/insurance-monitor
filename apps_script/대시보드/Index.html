@@ -1208,30 +1208,19 @@
       <div id="자사설정목록" class="그룹블록"></div>
       <h3>AI 분류 설정</h3>
       <div class="안내">
-        광고 소재 자동 분류에 사용할 AI를 선택하고 API 키를 입력하세요.
-        저장 후 다음 분류 실행부터 적용됩니다. 양쪽 키를 모두 입력해두면 프로바이더만 바꿔서 전환할 수 있습니다.
+        광고 소재 자동 분류에 사용할 NVIDIA API 키를 입력하세요.
+        키는 build.nvidia.com 에서 무료로 발급받을 수 있으며 nvapi- 로 시작합니다.
+        저장 후 다음 분류 실행부터 적용됩니다.
       </div>
       <div class="ai설정섹션">
-        <div class="ai프로바이더선택">
-          <label><input type="radio" name="ai_provider" value="gemini"> Gemini (Google)</label>
-          <label><input type="radio" name="ai_provider" value="openai"> OpenAI</label>
-        </div>
         <div class="ai키섹션">
           <div class="필드그룹">
-            <label>Gemini API Key</label>
-            <input type="password" id="gemini_api_key" placeholder="AIza...">
+            <label>NVIDIA API Key</label>
+            <input type="password" id="nvidia_api_key" placeholder="nvapi-...">
           </div>
           <div class="필드그룹">
-            <label>Gemini 모델</label>
-            <input type="text" id="gemini_model" placeholder="gemini-2.5-flash">
-          </div>
-          <div class="필드그룹">
-            <label>OpenAI API Key</label>
-            <input type="password" id="openai_api_key" placeholder="sk-...">
-          </div>
-          <div class="필드그룹">
-            <label>OpenAI 모델</label>
-            <input type="text" id="openai_model" placeholder="gpt-4o">
+            <label>분류 모델</label>
+            <input type="text" id="nvidia_model" placeholder="deepseek-ai/deepseek-v4-flash-0731">
           </div>
         </div>
         <div>
@@ -1289,7 +1278,7 @@
   <script>
     var 전체데이터 = [];
     var 설정값 = { 카테고리: {}, 소재유형: [], 보종: [], 소구포인트: [], 자사: [], 광고주그룹: {} };
-    var ai설정값 = { ai_provider: "gemini", gemini_api_key: "", gemini_model: "gemini-2.5-flash", openai_api_key: "", openai_model: "gpt-4o" };
+    var ai설정값 = { nvidia_api_key: "", nvidia_model: "deepseek-ai/deepseek-v4-flash-0731" };
     var 선택된ad_id = null;
     var 그룹핑적용 = false;
     var 다중선택상태 = { 카테고리: [], 광고주: [], 소재유형: [], 보종: [], 소구포인트: [] };
@@ -1987,29 +1976,15 @@
 
     function AI설정_렌더링() {
       var 설정 = ai설정값;
-      document.querySelectorAll("[name='ai_provider']").forEach(function (r) {
-        r.checked = r.value === (설정.ai_provider || "gemini");
-      });
-      document.getElementById("gemini_api_key").value = 설정.gemini_api_key || "";
-      document.getElementById("gemini_model").value = 설정.gemini_model || "gemini-2.5-flash";
-      document.getElementById("openai_api_key").value = 설정.openai_api_key || "";
-      document.getElementById("openai_model").value = 설정.openai_model || "gpt-4o";
+      document.getElementById("nvidia_api_key").value = 설정.nvidia_api_key || "";
+      document.getElementById("nvidia_model").value = 설정.nvidia_model || "deepseek-ai/deepseek-v4-flash-0731";
       document.getElementById("AI설정저장상태").textContent = "";
     }
 
     function AI설정저장() {
-      var 선택된프로바이더 = document.querySelector("[name='ai_provider']:checked");
-      if (!선택된프로바이더) {
-        alert("AI 프로바이더를 선택해주세요.");
-        return;
-      }
-
       var 저장할설정 = {
-        ai_provider: 선택된프로바이더.value,
-        gemini_api_key: document.getElementById("gemini_api_key").value.trim(),
-        gemini_model: document.getElementById("gemini_model").value.trim() || "gemini-2.5-flash",
-        openai_api_key: document.getElementById("openai_api_key").value.trim(),
-        openai_model: document.getElementById("openai_model").value.trim() || "gpt-4o"
+        nvidia_api_key: document.getElementById("nvidia_api_key").value.trim(),
+        nvidia_model: document.getElementById("nvidia_model").value.trim() || "deepseek-ai/deepseek-v4-flash-0731"
       };
 
       var 버튼 = document.getElementById("AI설정저장버튼");

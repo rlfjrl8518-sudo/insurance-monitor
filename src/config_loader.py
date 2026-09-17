@@ -42,20 +42,19 @@ def 설정_불러오기(설정_경로=기본_설정_경로):
     with open(설정_경로, "r", encoding="utf-8") as f:
         설정 = json.load(f)
 
-    # AI 프로바이더: 환경 변수(AI_PROVIDER)가 있으면 우선 사용
-    ai_provider = os.environ.get("AI_PROVIDER")
-    if ai_provider:
-        설정["ai_provider"] = _BOM_제거(ai_provider)
+    # NVIDIA API 키: 환경 변수(NVIDIA_API_KEY)가 있으면 우선 사용
+    # OPENAI_API_KEY는 기존에 등록된 저장소 Secret을 그대로 쓸 수 있게 남겨둔 대체 이름이다.
+    nvidia_키 = os.environ.get("NVIDIA_API_KEY") or os.environ.get("OPENAI_API_KEY")
+    if nvidia_키:
+        설정.setdefault("nvidia", {})["api_key"] = _BOM_제거(nvidia_키)
 
-    # Gemini API 키: 환경 변수(GEMINI_API_KEY)가 있으면 우선 사용
-    gemini_키 = os.environ.get("GEMINI_API_KEY")
-    if gemini_키:
-        설정["gemini"]["api_key"] = _BOM_제거(gemini_키)
+    # 모델은 환경 변수로도 바꿀 수 있게 둔다 (구글시트 'AI설정'보다 우선 적용된다)
+    for 환경변수, 설정키 in (("NVIDIA_MODEL", "model"), ("NVIDIA_VISION_MODEL", "vision_model"),
+                          ("NVIDIA_BASE_URL", "base_url")):
+        값 = os.environ.get(환경변수)
+        if 값:
+            설정.setdefault("nvidia", {})[설정키] = _BOM_제거(값)
 
-    # OpenAI API 키: 환경 변수(OPENAI_API_KEY)가 있으면 우선 사용
-    openai_키 = os.environ.get("OPENAI_API_KEY")
-    if openai_키:
-        설정.setdefault("openai", {})["api_key"] = _BOM_제거(openai_키)
 
     # 구글 시트/드라이브 ID: 환경 변수가 있으면 우선 사용
     시트_id = os.environ.get("GOOGLE_SHEETS_ID")
