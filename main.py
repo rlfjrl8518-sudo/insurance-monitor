@@ -102,6 +102,16 @@ def 실행():
         browser = p.chromium.launch(headless=설정["scraping"]["headless"])
         page = browser.new_page(locale="ko-KR")
 
+        # 광고 목록이 원래 실려 오는 GraphQL 응답을 곁에서 지켜본다(기록만 하고 수집은
+        # 그대로 둔다). 후킹은 페이지 이동 전에 심어야 첫 요청부터 잡힌다.
+        if 설정["scraping"].get("gql_shadow"):
+            try:
+                from src.gql_shadow import 켜기
+                설정["_gql_보관함"] = 켜기(page)
+            except Exception as e:
+                # 관측 장치 때문에 수집이 죽으면 안 된다.
+                print(f"  [그림자] 준비 실패(수집은 그대로 진행): {type(e).__name__}: {e}")
+
         for 광고주명 in 설정["advertisers"]:
             구분 = "자사" if 광고주명 == 설정.get("own_company") else "경쟁사"
             print(f"\n[{광고주명}] ({구분}) 수집 중...")

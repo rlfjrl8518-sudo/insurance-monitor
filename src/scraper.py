@@ -331,4 +331,18 @@ def 광고주_광고_수집(page, 광고주명, 설정, 진행_콜백=print):
             요약 = ", ".join(f"'{이름}'({횟수}건)" for 이름, 횟수 in 상위_불일치)
             진행_콜백(f"  제외된 페이지명 상위: {요약}")
 
+    # 그림자 대조: 브라우저가 이미 받은 GraphQL 응답과 위 수집 결과를 비교해 기록만 한다.
+    # 수집 결과(결과)는 손대지 않는다. 실제 누락률을 며칠 모아 본 뒤에
+    # 주 수집원을 GraphQL로 바꿀지 판단하기 위한 관측 장치다.
+    보관함 = 설정.get("_gql_보관함")
+    if 설정["scraping"].get("gql_shadow") and 보관함 is not None:
+        try:
+            from src.gql_shadow import 대조_기록
+            대조_기록(보관함, 광고주명, 수집된_library_id,
+                    설정["paths"].get("gql_shadow_log", "data/gql_shadow.jsonl"), 진행_콜백)
+            보관함.clear()   # 다음 광고주와 섞이지 않게 비운다
+        except Exception as e:
+            # 관측 장치 때문에 수집이 실패하면 안 된다.
+            진행_콜백(f"  [그림자] 대조 실패(무시하고 진행): {type(e).__name__}: {e}")
+
     return 결과

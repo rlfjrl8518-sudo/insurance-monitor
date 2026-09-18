@@ -39,10 +39,12 @@
     "scroll_stable_count": 10,
     "scroll_wait_seconds": 4,
     "page_load_wait_seconds": 5,
-    "headless": true
+    "headless": true,
+    "gql_shadow": true
   },
   "paths": {
     "csv_file": "data/ads.csv",
-    "images_dir": "data/images"
+    "images_dir": "data/images",
+    "gql_shadow_log": "data/gql_shadow.jsonl"
   }
 }
