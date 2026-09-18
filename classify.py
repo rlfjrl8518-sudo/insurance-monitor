@@ -8,7 +8,7 @@ import os
 import threading
 from concurrent.futures import ThreadPoolExecutor
 
-from src.classifier import 모델_생성, 광고_분류
+from src.classifier import 모델_생성, 광고_분류, 광고_분류_텍스트전용
 from src.config_loader import 경로_절대화, 설정_불러오기
 from src.csv_store import CSV_쓰기, CSV_읽기
 from src.sheets_sync import 설정_동적_적용
@@ -41,19 +41,27 @@ def 실행():
         print("CSV에 데이터가 없습니다. 먼저 main.py로 광고를 수집해주세요.")
         return
 
-    미분류_전체 = [행 for 행 in 전체_데이터.values() if not 행.get("소재유형")]
-    대상_목록 = [
-        행 for 행 in 미분류_전체
-        if 행.get("이미지파일명") and os.path.exists(os.path.join(이미지_폴더, 행["이미지파일명"]))
-    ]
-    이미지없음_건수 = len(미분류_전체) - len(대상_목록)
+    def _이미지_경로(행):
+        """로컬에 실제로 내려받아진 이미지 경로. 없으면 None."""
+        파일명 = 행.get("이미지파일명")
+        if not 파일명:
+            return None
+        경로 = os.path.join(이미지_폴더, 파일명)
+        return 경로 if os.path.exists(경로) else None
+
+    # 이미지가 없어도 광고텍스트만으로 분류한다. 예전에는 이미지가 있는 건만 골라서
+    # 돌렸는데, 종료된 광고는 이미지를 내려받지 못해 매일 실행해도 영영 미분류로
+    # 남았다. 텍스트 전용 분류가 어차피 더 빠르므로 건너뛸 이유가 없다.
+    대상_목록 = [행 for 행 in 전체_데이터.values()
+              if not 행.get("소재유형") and (행.get("광고텍스트") or "").strip()]
+    이미지없음_건수 = sum(1 for 행 in 대상_목록 if _이미지_경로(행) is None)
 
     동시_요청수 = 설정["nvidia"].get("동시_요청수", 6)
     print("=" * 60)
     print(f"AI 분류 시작 [{설정['nvidia']['model']}] - 대상: {len(대상_목록)}건 / 전체: {len(전체_데이터)}건")
     print(f"동시 요청 {동시_요청수}개")
     if 이미지없음_건수:
-        print(f"(이미지 없어 건너뜀: {이미지없음_건수}건 - 종료된 광고 등)")
+        print(f"(이미지 없이 텍스트만으로 분류: {이미지없음_건수}건 - 종료된 광고 등)")
     print("=" * 60)
 
     if not 대상_목록:
@@ -67,9 +75,13 @@ def 실행():
     def 한건(행):
         if 중단.is_set():
             return 행, None, "중단"
-        이미지_경로 = os.path.join(이미지_폴더, 행["이미지파일명"])
+        이미지_경로 = _이미지_경로(행)
         try:
-            return 행, 광고_분류(client, 이미지_경로, 행["광고주"], 행["광고텍스트"], 설정), None
+            if 이미지_경로:
+                결과 = 광고_분류(client, 이미지_경로, 행["광고주"], 행["광고텍스트"], 설정)
+            else:
+                결과 = 광고_분류_텍스트전용(client, 행["광고주"], 행["광고텍스트"], 설정)
+            return 행, 결과, None
         except Exception as e:
             if _할당량_초과_예외인가(e):
                 중단.set()

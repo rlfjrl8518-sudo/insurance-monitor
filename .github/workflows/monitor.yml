@@ -19,6 +19,7 @@ permissions:
 jobs:
   monitor:
     runs-on: ubuntu-latest
+    timeout-minutes: 90
     defaults:
       run:
         # 명시적으로 bash를 지정하면 GitHub Actions가 `-eo pipefail`을 적용한다.
