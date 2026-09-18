@@ -1,0 +1,6 @@
+# clasp가 Apps Script로 올릴 파일만 남긴다 (rootDir 기준).
+# 저장소의 파이썬/데이터 파일이 딸려 올라가지 않도록 명시적으로 걸러낸다.
+**/**
+!Code.gs
+!Index.html
+!appsscript.json
