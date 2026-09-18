@@ -3,18 +3,27 @@
 <head>
   <base target="_top">
   <meta charset="utf-8">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css">
   <style>
     :root {
-      --accent: #f0782a;
-      --bg: #f3f4f6;
+      /* 스니핏(snipit.im) 팔레트 기준. 파랑 하나를 포인트로 쓰고 나머지는 무채색으로 둔다. */
+      --accent: #334fff;
+      --accent-soft: #ebf1fd;   /* 보조 버튼/선택 상태 배경 */
+      --accent-dark: #2840d9;   /* hover */
+      --bg: #fdfdfe;
       --card-bg: #ffffff;
-      --border: #e0e2e6;
-      --text: #222;
-      --text-light: #888;
+      --border: #e9eaee;
+      --text: #16181d;
+      --text-light: #8a8f98;
+      --radius: 12px;           /* 카드/패널 */
+      --radius-sm: 8px;         /* 입력/작은 요소 */
+      --radius-pill: 9999px;    /* 버튼 */
+      --shadow: 0 1px 2px rgba(16,24,40,0.04), 0 1px 3px rgba(16,24,40,0.06);
     }
     * { box-sizing: border-box; }
     body {
-      font-family: "Malgun Gothic", "Apple SD Gothic Neo", sans-serif;
+      font-family: Pretendard, -apple-system, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+      -webkit-font-smoothing: antialiased;
       margin: 0;
       background: var(--bg);
       color: var(--text);
@@ -38,11 +47,14 @@
       background: var(--accent);
       color: #fff;
       border: none;
-      border-radius: 6px;
-      padding: 8px 14px;
+      border-radius: var(--radius-pill);
+      padding: 9px 18px;
       font-size: 13px;
+      font-weight: 600;
       cursor: pointer;
+      transition: background 0.15s;
     }
+    header button:hover { background: var(--accent-dark); }
 
     /* 탭바 */
     #탭바 {
@@ -65,14 +77,14 @@
       color: var(--text-light);
     }
     .탭버튼.활성 {
-      color: var(--text);
+      color: var(--accent);
       border-bottom-color: var(--accent);
-      font-weight: bold;
+      font-weight: 600;
     }
 
     /* 분석 탭 */
     #분석탭 {
-      --자사색: #eb6834;
+      --자사색: #334fff;
       --시리즈-1: #2a78d6;
       --시리즈-2: #1baf7a;
       --시리즈-3: #eda100;
@@ -246,9 +258,9 @@
       align-items: center;
       justify-content: center;
       gap: 10px;
-      background: #fff3ea;
+      background: var(--accent-soft);
       border-bottom: 1px solid var(--accent);
-      color: #7a3b0e;
+      color: var(--accent-dark);
       padding: 8px 20px;
       font-size: 12px;
       z-index: 200;
@@ -399,10 +411,17 @@
       }
     }
     #필터바 input, #필터바 select {
-      padding: 6px 8px;
+      padding: 7px 10px;
       border: 1px solid var(--border);
-      border-radius: 5px;
+      border-radius: var(--radius-sm);
       font-size: 12px;
+      background: #fff;
+      color: var(--text);
+    }
+    #필터바 input:focus, #필터바 select:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-soft);
     }
     #검색입력 { width: 220px; }
     #필터바 label {
@@ -421,18 +440,20 @@
     #필터초기화버튼 {
       background: #fff;
       border: 1px solid var(--border);
-      border-radius: 5px;
-      padding: 6px 12px;
+      border-radius: var(--radius-pill);
+      padding: 7px 14px;
       font-size: 12px;
       cursor: pointer;
       color: var(--text-light);
+      transition: background 0.15s, color 0.15s;
     }
+    #필터초기화버튼:hover { background: var(--accent-soft); color: var(--accent); }
     /* 다중선택 드롭다운 */
     .다중선택 { position: relative; }
     .다중선택버튼 {
-      padding: 6px 8px;
+      padding: 7px 10px;
       border: 1px solid var(--border);
-      border-radius: 5px;
+      border-radius: var(--radius-sm);
       font-size: 12px;
       background: #fff;
       cursor: pointer;
@@ -494,13 +515,15 @@
     .카드 {
       background: var(--card-bg);
       border: 1px solid var(--border);
-      border-radius: 10px;
+      border-radius: var(--radius);
       overflow: hidden;
       cursor: pointer;
-      transition: box-shadow 0.15s, transform 0.15s;
+      box-shadow: var(--shadow);
+      transition: box-shadow 0.18s, transform 0.18s, border-color 0.18s;
     }
     .카드:hover {
-      box-shadow: 0 4px 14px rgba(0,0,0,0.1);
+      box-shadow: 0 8px 24px rgba(16,24,40,0.10);
+      border-color: #d8dbe2;
       transform: translateY(-2px);
     }
     .카드 .이미지영역 {
@@ -535,21 +558,23 @@
     .태그 {
       display: inline-block;
       font-size: 11px;
-      padding: 2px 7px;
-      border-radius: 10px;
-      background: #eef1f5;
-      color: #555;
+      padding: 3px 9px;
+      border-radius: var(--radius-pill);
+      background: var(--accent-soft);
+      color: var(--accent);
+      font-weight: 500;
     }
     .태그.빈값 { color: #bbb; }
+    /* 상태는 의미색을 유지한다. 분류 태그(.태그)와 달리 한눈에 구분돼야 한다. */
     .상태배지 {
       font-size: 11px;
-      padding: 2px 7px;
-      border-radius: 10px;
-      font-weight: bold;
+      padding: 3px 9px;
+      border-radius: var(--radius-pill);
+      font-weight: 600;
     }
-    .상태배지.신규 { background: #e6f4ea; color: #1e8e3e; }
-    .상태배지.운영중 { background: #e8f0fe; color: #1a73e8; }
-    .상태배지.종료 { background: #f1f1f1; color: #999; }
+    .상태배지.신규 { background: #e7f6ec; color: #18794e; }
+    .상태배지.운영중 { background: var(--accent-soft); color: var(--accent); }
+    .상태배지.종료 { background: #f2f3f5; color: #9096a1; }
     .카드 .하단줄 {
       display: flex;
       justify-content: space-between;
