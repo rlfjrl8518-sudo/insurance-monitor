@@ -20,6 +20,10 @@ var 시트이름_설정 = "설정";
 var 시트이름_광고주그룹 = "광고주그룹";
 var 시트이름_수동추가 = "수동추가";
 var 시트이름_AI설정 = "AI설정";
+var 시트이름_보드 = "보드";
+
+// "보드" 시트 컬럼
+var 보드_컬럼 = ["보드명", "ad_id", "저장일시"];
 
 // "수동추가" 시트 컬럼 (src/sheets_sync.py와 동일한 순서 유지)
 var 수동추가_컬럼 = ["요청URL", "library_id", "상태", "요청일시", "처리일시", "메모"];
@@ -88,7 +92,7 @@ function 광고데이터_가져오기() {
  * 결과의 카테고리 항목에 { 카테고리명: [광고주, ...] } 형태로 담긴다.
  */
 function 설정값_가져오기() {
-  var 결과 = { 카테고리: {}, 소재유형: [], 보종: [], 소구포인트: [], 자사: [], 광고주그룹: {} };
+  var 결과 = { 카테고리: {}, 소재유형: [], 보종: [], 소구포인트: [], 자사: [], 광고주그룹: {}, 보드: {} };
 
   var sheet = 시트_가져오기(시트이름_설정);
   if (sheet) {
@@ -119,6 +123,7 @@ function 설정값_가져오기() {
   }
 
   결과.광고주그룹 = 광고주그룹_가져오기();
+  결과.보드 = 보드_가져오기();
 
   return 결과;
 }
@@ -313,6 +318,74 @@ function AI설정_저장(설정) {
 }
 
 /** "수동추가" 시트를 가져오거나, 없으면 헤더와 함께 새로 만든다. */
+/** "보드" 시트를 가져오거나, 없으면 헤더와 함께 새로 만든다.
+ *
+ * 마음에 드는 소재를 주제별로 모아두는 용도다. 한 소재가 여러 보드에 들어갈 수 있어
+ * (보드명, ad_id) 한 쌍을 한 행으로 쌓는 단순한 구조로 둔다.
+ */
+function 보드_시트_가져오기() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName(시트이름_보드);
+  if (!sheet) {
+    sheet = ss.insertSheet(시트이름_보드);
+    sheet.appendRow(보드_컬럼);
+    // ad_id는 숫자로 해석되면 안 되므로 텍스트 형식으로 고정한다.
+    sheet.getRange("B:B").setNumberFormat("@");
+  }
+  return sheet;
+}
+
+/** 보드 전체를 {보드명: [ad_id, ...]} 형태로 읽어온다. */
+function 보드_가져오기() {
+  var sheet = 시트_가져오기(시트이름_보드);
+  if (!sheet) return {};
+
+  var 값 = sheet.getDataRange().getValues();
+  var 결과 = {};
+  for (var i = 1; i < 값.length; i++) {
+    var 보드명 = String(값[i][0] || "").trim();
+    var ad_id = String(값[i][1] || "").trim();
+    if (!보드명 || !ad_id) continue;
+    if (!결과[보드명]) 결과[보드명] = [];
+    if (결과[보드명].indexOf(ad_id) === -1) 결과[보드명].push(ad_id);
+  }
+  return 결과;
+}
+
+/** 소재를 보드에 담는다. 이미 담겨 있으면 아무것도 하지 않는다. */
+function 보드에_담기(보드명, ad_id) {
+  보드명 = String(보드명 || "").trim();
+  ad_id = String(ad_id || "").trim();
+  if (!보드명 || !ad_id) return { success: false, error: "보드명과 소재를 모두 지정해주세요." };
+
+  var sheet = 보드_시트_가져오기();
+  var 값 = sheet.getDataRange().getValues();
+  for (var i = 1; i < 값.length; i++) {
+    if (String(값[i][0]).trim() === 보드명 && String(값[i][1]).trim() === ad_id) {
+      return { success: true, 이미있음: true };
+    }
+  }
+  sheet.appendRow([보드명, ad_id, new Date()]);
+  return { success: true };
+}
+
+/** 보드에서 소재를 뺀다. */
+function 보드에서_빼기(보드명, ad_id) {
+  보드명 = String(보드명 || "").trim();
+  ad_id = String(ad_id || "").trim();
+  var sheet = 시트_가져오기(시트이름_보드);
+  if (!sheet) return { success: true };
+
+  var 값 = sheet.getDataRange().getValues();
+  // 뒤에서부터 지워야 행 삭제로 인덱스가 밀리지 않는다.
+  for (var i = 값.length - 1; i >= 1; i--) {
+    if (String(값[i][0]).trim() === 보드명 && String(값[i][1]).trim() === ad_id) {
+      sheet.deleteRow(i + 1);
+    }
+  }
+  return { success: true };
+}
+
 function 수동추가_시트_가져오기() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var sheet = ss.getSheetByName(시트이름_수동추가);

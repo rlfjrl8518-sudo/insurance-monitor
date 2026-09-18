@@ -526,7 +526,41 @@
       border-color: #d8dbe2;
       transform: translateY(-2px);
     }
+    #유사소재영역 { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--border); }
+    #유사소재영역 > label {
+      display: block; font-size: 12px; color: var(--text-light); margin-bottom: 8px;
+    }
+    #유사소재목록 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+    #유사소재목록 img {
+      width: 100%; aspect-ratio: 1/1; object-fit: cover;
+      border-radius: var(--radius-sm); border: 1px solid var(--border); cursor: pointer;
+      transition: border-color 0.15s;
+    }
+    #유사소재목록 img:hover { border-color: var(--accent); }
+    .보드담기버튼 {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      z-index: 2;
+      width: 28px;
+      height: 28px;
+      border-radius: var(--radius-pill);
+      border: none;
+      background: rgba(255,255,255,0.92);
+      box-shadow: var(--shadow);
+      color: var(--accent);
+      font-size: 14px;
+      line-height: 1;
+      cursor: pointer;
+      opacity: 0;
+      transition: opacity 0.15s, background 0.15s;
+    }
+    .카드:hover .보드담기버튼 { opacity: 1; }
+    /* 이미 담긴 소재는 마우스를 올리지 않아도 보이게 둔다 */
+    .보드담기버튼.담김 { opacity: 1; background: var(--accent); color: #fff; }
+    .보드담기버튼:hover { background: var(--accent); color: #fff; }
     .카드 .이미지영역 {
+      position: relative;
       width: 100%;
       aspect-ratio: 1 / 1;
       background: #f0f0f0;
@@ -951,6 +985,10 @@
       <option value="경쟁사">경쟁사</option>
     </select>
 
+    <select id="보드필터" onchange="필터적용()">
+      <option value="전체">보드: 전체</option>
+    </select>
+
     <select id="상태필터" onchange="필터적용()">
       <option value="운영중" selected>운영중만</option>
       <option value="전체">상태: 전체</option>
@@ -1175,6 +1213,11 @@
           <button id="원본보기버튼" onclick="원본광고열기()">Meta 원본 광고 보기</button>
           <span id="저장상태"></span>
         </div>
+
+        <div id="유사소재영역" style="display:none">
+          <label>같은 분류의 다른 소재</label>
+          <div id="유사소재목록"></div>
+        </div>
       </div>
     </div>
   </div>
@@ -1281,7 +1324,7 @@
   <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.1/dist/echarts.min.js"></script>
   <script>
     var 전체데이터 = [];
-    var 설정값 = { 카테고리: {}, 소재유형: [], 보종: [], 소구포인트: [], 자사: [], 광고주그룹: {} };
+    var 설정값 = { 카테고리: {}, 소재유형: [], 보종: [], 소구포인트: [], 자사: [], 광고주그룹: {}, 보드: {} };
     var ai설정값 = { nvidia_api_key: "", nvidia_model: "deepseek-ai/deepseek-v4-flash-0731" };
     var 선택된ad_id = null;
     var 다중선택상태 = { 카테고리: [], 광고주: [], 소재유형: [], 보종: [], 소구포인트: [] };
@@ -1396,6 +1439,82 @@
       return 목록;
     }
 
+    // ── 보드(스크랩) ────────────────────────────────────────────────
+    // 소재를 주제별로 모아두는 기능. 설정값.보드는 {보드명: [ad_id, ...]} 형태다.
+
+    function 보드이름목록() {
+      return Object.keys(설정값.보드 || {});
+    }
+
+    // 이 소재가 담겨 있는 보드 이름들
+    function 보드에담긴보드들(ad_id) {
+      var 결과 = [];
+      var 보드 = 설정값.보드 || {};
+      Object.keys(보드).forEach(function (이름) {
+        if ((보드[이름] || []).indexOf(String(ad_id)) !== -1) 결과.push(이름);
+      });
+      return 결과;
+    }
+
+    function 보드필터옵션채우기() {
+      var 셀렉트 = document.getElementById("보드필터");
+      if (!셀렉트) return;
+      var 현재값 = 셀렉트.value || "전체";
+      var 목록 = 보드이름목록();
+      셀렉트.innerHTML = '<option value="전체">보드: 전체</option>';
+      목록.forEach(function (이름) {
+        var 개수 = (설정값.보드[이름] || []).length;
+        var 옵션 = document.createElement("option");
+        옵션.value = 이름;
+        옵션.textContent = 이름 + " (" + 개수 + ")";
+        셀렉트.appendChild(옵션);
+      });
+      셀렉트.value = 목록.indexOf(현재값) !== -1 ? 현재값 : "전체";
+    }
+
+    // 보드 선택/생성. 시트 왕복을 기다리지 않고 화면을 먼저 갱신한 뒤 서버에 반영한다.
+    function 보드담기열기(ad_id) {
+      var 담긴것 = 보드에담긴보드들(ad_id);
+      var 목록 = 보드이름목록();
+      var 안내 = "보드 이름을 입력하세요.";
+      if (목록.length) 안내 += "\n\n기존 보드: " + 목록.join(", ");
+      if (담긴것.length) 안내 += "\n현재 담긴 보드: " + 담긴것.join(", ")
+        + "\n(이미 담긴 보드명을 그대로 넣으면 빼냅니다)";
+
+      var 보드명 = window.prompt(안내, 목록[0] || "참고 소재");
+      if (!보드명) return;
+      보드명 = 보드명.trim();
+      if (!보드명) return;
+
+      var 빼기 = 담긴것.indexOf(보드명) !== -1;
+      설정값.보드 = 설정값.보드 || {};
+      설정값.보드[보드명] = 설정값.보드[보드명] || [];
+      if (빼기) {
+        설정값.보드[보드명] = 설정값.보드[보드명].filter(function (v) { return v !== String(ad_id); });
+        if (!설정값.보드[보드명].length) delete 설정값.보드[보드명];
+      } else {
+        설정값.보드[보드명].push(String(ad_id));
+      }
+      보드필터옵션채우기();
+      필터적용();
+
+      google.script.run
+        .withFailureHandler(function (e) { alert("보드 저장에 실패했습니다: " + e.message); })
+        [빼기 ? "보드에서_빼기" : "보드에_담기"](보드명, String(ad_id));
+    }
+
+    // 같은 소재유형·보종·소구포인트 조합의 다른 소재를 보여준다.
+    // 별도 유사도 계산 없이 이미 있는 분류값만으로 묶는다.
+    function 유사소재목록(행, 최대) {
+      if (!행.소재유형 && !행.보종 && !행.소구포인트) return [];
+      return 전체데이터.filter(function (d) {
+        return d.ad_id !== 행.ad_id
+          && d.소재유형 === 행.소재유형
+          && d.보종 === 행.보종
+          && d.소구포인트 === 행.소구포인트;
+      }).slice(0, 최대 || 8);
+    }
+
     // 필터 옵션/정렬 순서에 쓰는 표시명 목록. 그룹명 기준으로 중복을 제거한다.
     function 그룹화이름목록() {
       var 그룹맵 = 광고주그룹맵();
@@ -1479,6 +1598,7 @@
     }
 
     function 필터옵션채우기() {
+      보드필터옵션채우기();
       var 존재 = 존재값집합(다중선택상태.카테고리);
       var 옵션맵 = {
         카테고리: Object.keys(설정값.카테고리 || {}).filter(function (v) { return 존재.카테고리[v]; }),
@@ -1591,6 +1711,7 @@
       });
       필터옵션채우기();
       document.getElementById("구분필터").value = "전체";
+      document.getElementById("보드필터").value = "전체";
       document.getElementById("상태필터").value = "운영중";
       document.getElementById("운영일수필터").value = "";
       ["기간_부터", "기간_까지"].forEach(function (id) {
@@ -1604,12 +1725,16 @@
       var 구분 = document.getElementById("구분필터").value;
       var 상태 = document.getElementById("상태필터").value;
       var 운영일수필터값 = document.getElementById("운영일수필터").value;
+      var 보드선택 = document.getElementById("보드필터").value;
       var 기간_부터 = document.getElementById("기간_부터").value;
       var 기간_까지 = document.getElementById("기간_까지").value;
 
       var 광고주카테고리 = 광고주카테고리맵();
 
+      var 보드담긴목록 = (보드선택 !== "전체") ? ((설정값.보드 || {})[보드선택] || []) : null;
+
       var 결과 = 전체데이터.filter(function (행) {
+        if (보드담긴목록 && 보드담긴목록.indexOf(String(행.ad_id)) === -1) return false;
         if (다중선택상태.카테고리.length && 다중선택상태.카테고리.indexOf(광고주카테고리[행.광고주]) === -1) return false;
         if (다중선택상태.광고주.length && 다중선택상태.광고주.indexOf(행.__표시광고주 || 행.광고주) === -1) return false;
         if (다중선택상태.소재유형.length && 다중선택상태.소재유형.indexOf(행.소재유형) === -1) return false;
@@ -1718,6 +1843,17 @@
         이미지영역.appendChild(아이콘);
         이미지영역.appendChild(텍스트);
       }
+      var 담기버튼 = document.createElement("button");
+      var 담긴보드 = 보드에담긴보드들(행.ad_id);
+      담기버튼.className = "보드담기버튼" + (담긴보드.length ? " 담김" : "");
+      담기버튼.type = "button";
+      담기버튼.title = 담긴보드.length ? ("담긴 보드: " + 담긴보드.join(", ")) : "보드에 담기";
+      담기버튼.textContent = 담긴보드.length ? "★" : "＋";
+      담기버튼.onclick = function (e) {
+        e.stopPropagation();   // 카드 클릭(상세 열기)과 겹치지 않게
+        보드담기열기(행.ad_id);
+      };
+      이미지영역.appendChild(담기버튼);
       카드.appendChild(이미지영역);
 
       var 정보 = document.createElement("div");
@@ -1751,11 +1887,31 @@
       return 카드;
     }
 
+    function 유사소재렌더링(행) {
+      var 영역 = document.getElementById("유사소재영역");
+      var 목록칸 = document.getElementById("유사소재목록");
+      if (!영역 || !목록칸) return;
+      목록칸.innerHTML = "";
+      var 유사 = 유사소재목록(행, 8);
+      if (!유사.length) { 영역.style.display = "none"; return; }
+      영역.style.display = "block";
+      유사.forEach(function (d) {
+        if (!d.이미지URL) return;
+        var img = document.createElement("img");
+        img.src = d.이미지URL;
+        img.loading = "lazy";
+        img.title = (d.광고주 || "") + " · 운영 " + (d.운영일수 || 0) + "일";
+        img.onclick = function () { 상세열기(d.ad_id); };
+        목록칸.appendChild(img);
+      });
+    }
+
     function 상세열기(ad_id) {
       var 행 = 전체데이터.find(function (d) { return d.ad_id === ad_id; });
       if (!행) return;
 
       선택된ad_id = ad_id;
+      유사소재렌더링(행);
 
       var 상세이미지 = document.getElementById("상세이미지");
       var 상세이미지플레이스홀더 = document.getElementById("상세이미지플레이스홀더");
