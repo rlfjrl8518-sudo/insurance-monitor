@@ -11,11 +11,11 @@ export const metadata: Metadata = {
 // 아직 안 만든 화면은 눌러도 빈 화면이 뜨지 않게 비활성으로 둔다.
 const 메뉴: { 이름: string; 경로: string; 아이콘: string; 준비됨?: boolean }[] = [
   { 이름: "탐색", 경로: "/", 아이콘: "◎", 준비됨: true },
-  { 이름: "브랜드", 경로: "/brands", 아이콘: "▤" },
-  { 이름: "경쟁 비교", 경로: "/compare", 아이콘: "⇅" },
-  { 이름: "인사이트", 경로: "/insights", 아이콘: "◫" },
-  { 이름: "교차분석", 경로: "/crosstab", 아이콘: "⊞" },
-  { 이름: "보드", 경로: "/boards", 아이콘: "❏" },
+  { 이름: "브랜드", 경로: "/brands", 아이콘: "▤", 준비됨: true },
+  { 이름: "경쟁 비교", 경로: "/compare", 아이콘: "⇅", 준비됨: true },
+  { 이름: "인사이트", 경로: "/insights", 아이콘: "◫", 준비됨: true },
+  { 이름: "교차분석", 경로: "/crosstab", 아이콘: "⊞", 준비됨: true },
+  { 이름: "보드", 경로: "/boards", 아이콘: "❏", 준비됨: true },
   { 이름: "AI 어시스턴트", 경로: "/assistant", 아이콘: "✦" },
 ];
 
@@ -42,7 +42,7 @@ export default function RootLayout({
                   <Link
                     key={m.경로}
                     href={m.경로}
-                    className="mb-0.5 flex items-center gap-2.5 rounded-lg bg-white/10 px-3 py-2 text-[13px] font-medium text-white"
+                    className="mb-0.5 flex items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] font-medium text-white/80 transition hover:bg-white/10 hover:text-white"
                   >
                     <span className="w-4 text-center text-[12px] opacity-70">
                       {m.아이콘}

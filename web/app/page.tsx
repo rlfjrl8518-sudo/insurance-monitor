@@ -1,5 +1,6 @@
 import { sql, 표시광고주, type 광고 } from "@/lib/db";
 import { 날짜, 아바타, 지표, 칩줄, 태그 } from "./ui";
+import { 보드_토글 } from "./boards/actions";
 
 export const dynamic = "force-dynamic";
 
@@ -210,6 +211,18 @@ export default async function 탐색({
                   <span className="absolute left-2 top-2 rounded-full bg-white/92 px-2 py-0.5 text-[10px] font-semibold text-[#334fff] shadow-sm">
                     {행.status}
                   </span>
+                  {/* 담기 버튼. 보드명을 입력받지 않고 기본 보드에 넣는다.
+                      이름을 매번 묻는 것보다 일단 모으고 나중에 정리하는 쪽이 손이 덜 간다. */}
+                  <form action={보드_토글} className="absolute right-2 top-2">
+                    <input type="hidden" name="ad_id" value={행.ad_id} />
+                    <input type="hidden" name="보드명" value="참고 소재" />
+                    <button
+                      title="보드에 담기 / 빼기"
+                      className="flex h-7 w-7 items-center justify-center rounded-full bg-white/92 text-[13px] text-[#334fff] opacity-0 shadow-sm transition group-hover:opacity-100 hover:bg-[#334fff] hover:text-white"
+                    >
+                      ＋
+                    </button>
+                  </form>
                 </div>
                 <div className="p-3">
                   <div className="mb-2 flex flex-wrap gap-1">
