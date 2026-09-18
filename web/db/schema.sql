@@ -66,3 +66,13 @@ create table if not exists boards (
 );
 
 create index if not exists boards_ad_idx on boards (ad_id);
+
+-- 수집·분류 설정. 구글시트 "설정"/"분류규칙"/"AI설정" 탭이 하던 역할을 웹 대시보드로
+-- 옮기기 위한 자리다. 키 하나에 값 한 덩어리(jsonb)를 넣고, 파이프라인은 여기 있는
+-- 키만 시트 값 위에 덮어쓴다. 비어 있으면 종전대로 시트를 그대로 쓴다.
+-- 쓰는 키: advertiser_categories, classification, classification_rules, nvidia_models
+create table if not exists settings (
+  key         text primary key,
+  value       jsonb not null,
+  updated_at  timestamptz not null default now()
+);

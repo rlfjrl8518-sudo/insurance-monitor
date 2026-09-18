@@ -47,6 +47,7 @@ jobs:
           GOOGLE_SHEETS_ID: ${{ secrets.GOOGLE_SHEETS_ID }}
           GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
           DASHBOARD_WEBAPP_URL: ${{ secrets.DASHBOARD_WEBAPP_URL }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: python main.py | tee collect.log
 
       - name: 2단계 - AI 분류
@@ -55,6 +56,7 @@ jobs:
           NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
           GOOGLE_SHEETS_ID: ${{ secrets.GOOGLE_SHEETS_ID }}
           GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: python classify.py | tee classify.log
 
       - name: 3단계 - Google Sheets 동기화

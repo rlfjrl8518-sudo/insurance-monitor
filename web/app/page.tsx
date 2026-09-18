@@ -1,5 +1,6 @@
+import Link from "next/link";
 import { sql, 표시광고주, type 광고 } from "@/lib/db";
-import { 날짜, 아바타, 지표, 칩줄, 태그 } from "./ui";
+import { 날짜, 아바타, 조건링크, 지표, 칩줄, 태그 } from "./ui";
 import { 보드_토글 } from "./boards/actions";
 
 export const dynamic = "force-dynamic";
@@ -13,6 +14,7 @@ type 검색조건 = {
   보종?: string;
   소구포인트?: string;
   운영일수?: string;
+  소재?: string;   // 상세를 펼칠 소재. 검색 조건이 아니라 보기 상태다.
 };
 
 /** 기본은 운영중만. 종료까지 다 나오면 지금 돌고 있는 걸 보기 어렵다. */
@@ -59,7 +61,7 @@ export default async function 탐색({
 }: {
   searchParams: Promise<검색조건>;
 }) {
-  const 조건 = await searchParams;
+  const { 소재: 펼친소재, ...조건 } = await searchParams;
   const 상태 = 조건.상태 ?? 기본상태;
 
   let 행들: 광고[] = [];
@@ -98,6 +100,21 @@ export default async function 탐색({
   for (const 행 of 행들) {
     const k = 표시광고주(행);
     (묶음.get(k) ?? 묶음.set(k, []).get(k)!).push(행);
+  }
+
+  // 펼친 소재는 대개 방금 읽은 목록 안에 있다. 링크로 바로 들어온 경우에만 한 번 더 읽는다.
+  let 상세: 광고 | null = 펼친소재 ? (행들.find((r) => r.ad_id === 펼친소재) ?? null) : null;
+  if (펼친소재 && !상세) {
+    try {
+      const r = (await sql`
+        select ad_id, advertiser, advertiser_group, segment, image_url, detail_url,
+               ad_text, summary, creative_type, insurance_type, appeal_point,
+               labels, started_on, ended_on, status, running_days
+        from ads where ad_id = ${펼친소재} limit 1`) as unknown as 광고[];
+      상세 = r[0] ?? null;
+    } catch {
+      상세 = null;
+    }
   }
 
   // 상태·구분·운영일수는 지금 조건 안에서 세면 항상 자기 자신만 남아 의미가 없다.
@@ -195,8 +212,10 @@ export default async function 탐색({
             {소재들.map((행) => (
               <article
                 key={행.ad_id}
-                className="group overflow-hidden rounded-xl border border-[#e9eaee] bg-white shadow-[0_1px_2px_rgba(16,24,40,0.04)] transition hover:-translate-y-1 hover:border-[#c3cbe4] hover:shadow-[0_12px_28px_rgba(16,24,40,0.12)]"
+                className="group relative overflow-hidden rounded-xl border border-[#e9eaee] bg-white shadow-[0_1px_2px_rgba(16,24,40,0.04)] transition hover:-translate-y-1 hover:border-[#c3cbe4] hover:shadow-[0_12px_28px_rgba(16,24,40,0.12)]"
               >
+                {/* 카드를 누르면 상세가 열린다. 주소에 남겨서 뒤로가기로 닫히고 링크로 공유된다. */}
+                <Link href={조건링크(조건, "소재", 행.ad_id)} className="block">
                 <div className="relative aspect-square overflow-hidden bg-[#f2f3f5]">
                   {행.image_url && (
                     // 외부 저장소 이미지라 next/image 최적화 대신 그대로 쓴다.
@@ -211,18 +230,6 @@ export default async function 탐색({
                   <span className="absolute left-2 top-2 rounded-full bg-white/92 px-2 py-0.5 text-[10px] font-semibold text-[#334fff] shadow-sm">
                     {행.status}
                   </span>
-                  {/* 담기 버튼. 보드명을 입력받지 않고 기본 보드에 넣는다.
-                      이름을 매번 묻는 것보다 일단 모으고 나중에 정리하는 쪽이 손이 덜 간다. */}
-                  <form action={보드_토글} className="absolute right-2 top-2">
-                    <input type="hidden" name="ad_id" value={행.ad_id} />
-                    <input type="hidden" name="보드명" value="참고 소재" />
-                    <button
-                      title="보드에 담기 / 빼기"
-                      className="flex h-7 w-7 items-center justify-center rounded-full bg-white/92 text-[13px] text-[#334fff] opacity-0 shadow-sm transition group-hover:opacity-100 hover:bg-[#334fff] hover:text-white"
-                    >
-                      ＋
-                    </button>
-                  </form>
                 </div>
                 <div className="p-3">
                   <div className="mb-2 flex flex-wrap gap-1">
@@ -235,6 +242,20 @@ export default async function 탐색({
                     <span>운영 {행.running_days}일</span>
                   </div>
                 </div>
+                </Link>
+
+                {/* 담기 버튼은 링크 밖에 둔다. a 안에 button을 넣으면 클릭이 서로 먹는다.
+                    보드명은 묻지 않고 기본 보드에 넣는다 — 일단 모으고 나중에 정리하는 쪽이 손이 덜 간다. */}
+                <form action={보드_토글} className="absolute right-2 top-2">
+                  <input type="hidden" name="ad_id" value={행.ad_id} />
+                  <input type="hidden" name="보드명" value="참고 소재" />
+                  <button
+                    title="보드에 담기 / 빼기"
+                    className="flex h-7 w-7 items-center justify-center rounded-full bg-white/92 text-[13px] text-[#334fff] opacity-0 shadow-sm transition group-hover:opacity-100 hover:bg-[#334fff] hover:text-white"
+                  >
+                    ＋
+                  </button>
+                </form>
               </article>
             ))}
           </div>
@@ -244,6 +265,110 @@ export default async function 탐색({
       {!오류 && 행들.length === 0 && (
         <div className="rounded-xl border border-[#e9eaee] bg-white p-10 text-center text-[13px] text-[#8a8f98]">
           조건에 맞는 소재가 없습니다.
+        </div>
+      )}
+
+      {상세 && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          {/* 배경도 닫기 링크다. 자바스크립트 없이 주소만으로 열고 닫는다. */}
+          <Link
+            href={조건링크(조건, "소재", "")}
+            aria-label="닫기"
+            className="absolute inset-0 bg-[#16181d]/55"
+          />
+          <div className="relative flex max-h-[88vh] w-full max-w-[860px] flex-col overflow-hidden rounded-2xl bg-white shadow-[0_24px_64px_rgba(16,24,40,0.28)] md:flex-row">
+            <div className="flex shrink-0 items-center justify-center bg-[#f2f3f5] md:w-[46%]">
+              {상세.image_url ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={상세.image_url}
+                  alt=""
+                  className="max-h-[42vh] w-full object-contain md:max-h-[88vh]"
+                />
+              ) : (
+                <div className="px-6 py-20 text-center text-[12px] text-[#a7adb8]">
+                  이미지가 만료되어 표시할 수 없습니다.
+                </div>
+              )}
+            </div>
+
+            <div className="min-w-0 flex-1 overflow-y-auto p-6">
+              <div className="mb-3 flex items-center gap-2">
+                <아바타 이름={표시광고주(상세)} />
+                <span className="text-[14px] font-bold">{표시광고주(상세)}</span>
+                <span className="rounded-full bg-[#f2f3f5] px-2 py-0.5 text-[11px] text-[#5c626d]">
+                  {상세.status}
+                </span>
+                <Link
+                  href={조건링크(조건, "소재", "")}
+                  className="ml-auto flex h-7 w-7 items-center justify-center rounded-full text-[15px] text-[#8a8f98] hover:bg-[#f2f3f5]"
+                >
+                  ✕
+                </Link>
+              </div>
+
+              <div className="mb-3 flex flex-wrap gap-1">
+                <태그 값={상세.creative_type} 강조 />
+                <태그 값={상세.insurance_type} />
+                <태그 값={상세.appeal_point} />
+                {Object.entries(상세.labels ?? {}).map(([k, v]) => (
+                  <태그 key={k} 값={`${k}·${v}`} />
+                ))}
+              </div>
+
+              <dl className="mb-4 grid grid-cols-2 gap-y-1.5 text-[12px]">
+                <dt className="text-[#8a8f98]">게재 시작</dt>
+                <dd className="text-right font-medium">{날짜(상세.started_on)}</dd>
+                <dt className="text-[#8a8f98]">운영일수</dt>
+                <dd className="text-right font-medium">{상세.running_days}일</dd>
+                {상세.ended_on && (
+                  <>
+                    <dt className="text-[#8a8f98]">종료</dt>
+                    <dd className="text-right font-medium">{날짜(상세.ended_on)}</dd>
+                  </>
+                )}
+                <dt className="text-[#8a8f98]">페이지명</dt>
+                <dd className="truncate text-right font-medium">{상세.advertiser}</dd>
+              </dl>
+
+              {상세.summary && (
+                <p className="mb-3 rounded-lg bg-[#ebf1fd] px-3 py-2 text-[12px] leading-relaxed text-[#2840d9]">
+                  {상세.summary}
+                </p>
+              )}
+
+              <div className="mb-1.5 text-[12px] font-semibold">소재 문구</div>
+              <p className="mb-5 whitespace-pre-wrap break-words rounded-lg border border-[#e9eaee] bg-[#fafbfc] px-3 py-2.5 text-[12px] leading-relaxed text-[#3d434d]">
+                {상세.ad_text?.trim() || "문구가 없는 소재입니다."}
+              </p>
+
+              <div className="flex flex-wrap gap-2">
+                {상세.detail_url && (
+                  <a
+                    href={상세.detail_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="rounded-full bg-[#334fff] px-4 py-2 text-[12px] font-semibold text-white"
+                  >
+                    메타 광고 라이브러리에서 보기 ↗
+                  </a>
+                )}
+                <form action={보드_토글}>
+                  <input type="hidden" name="ad_id" value={상세.ad_id} />
+                  <input type="hidden" name="보드명" value="참고 소재" />
+                  <button className="rounded-full border border-[#e4e6eb] px-4 py-2 text-[12px] font-semibold text-[#5c626d] hover:border-[#334fff] hover:text-[#334fff]">
+                    보드에 담기 / 빼기
+                  </button>
+                </form>
+                <Link
+                  href={조건링크({ ...조건, 그룹: 표시광고주(상세) }, "소재", "")}
+                  className="rounded-full border border-[#e4e6eb] px-4 py-2 text-[12px] font-semibold text-[#5c626d] hover:border-[#334fff] hover:text-[#334fff]"
+                >
+                  이 광고주 소재 모아 보기
+                </Link>
+              </div>
+            </div>
+          </div>
         </div>
       )}
     </div>

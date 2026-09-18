@@ -317,9 +317,13 @@ def 설정_동적_적용(설정, 서비스계정_경로):
     """
     설정["advertisers"] = 광고주_목록_생성(설정)
 
+    # 시트를 못 읽는 경우에도 웹 설정은 적용되어야 한다. 시트를 떼어낸 뒤에는
+    # 이 경로가 정상 경로가 된다.
     if "여기에_" in 설정["google_sheets"]["spreadsheet_id"]:
+        _웹_설정_덮어쓰기(설정)
         return 설정
     if not os.path.exists(서비스계정_경로):
+        _웹_설정_덮어쓰기(설정)
         return 설정
 
     try:
@@ -330,6 +334,7 @@ def 설정_동적_적용(설정, 서비스계정_경로):
         설정["classification_rules"] = 분류규칙_시트_읽기(gc, 설정)
     except Exception as e:
         print(f"'설정' 시트를 읽지 못해 config.json 기본값을 사용합니다: {e}")
+        _웹_설정_덮어쓰기(설정)
         return 설정
 
     if 시트설정["카테고리"]:
@@ -356,7 +361,25 @@ def 설정_동적_적용(설정, 서비스계정_경로):
     if ai설정.get("nvidia_vision_model") and not os.environ.get("NVIDIA_VISION_MODEL"):
         설정["nvidia"]["vision_model"] = ai설정["nvidia_vision_model"]
 
+    _웹_설정_덮어쓰기(설정)
     return 설정
+
+
+def _웹_설정_덮어쓰기(설정):
+    """웹 대시보드에서 저장한 설정이 있으면 시트 값 위에 덮어쓴다.
+
+    시트와 웹 두 곳에서 같은 걸 고칠 수 있는 동안에는 어느 쪽이 이기는지가
+    분명해야 한다. 나중에 시트를 떼어낼 것이므로 웹이 이긴다.
+    """
+    from src.settings_store import 설정_읽기, 설정_덮어쓰기
+
+    저장된 = 설정_읽기()
+    if not 저장된:
+        return
+    설정_덮어쓰기(설정, 저장된)
+    if 저장된.get("advertiser_categories"):
+        설정["advertisers"] = 광고주_목록_생성(설정)
+    print(f"웹 대시보드 설정을 적용했습니다: {', '.join(sorted(저장된))}")
 
 
 def 이미지_업로드(설정, 이미지_경로, 파일명, 광고주, 수집일, 소재유형):
