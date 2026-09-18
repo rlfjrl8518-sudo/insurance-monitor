@@ -17,8 +17,12 @@ type 검색조건 = {
   소재?: string;   // 상세를 펼칠 소재. 검색 조건이 아니라 보기 상태다.
 };
 
-/** 기본은 운영중만. 종료까지 다 나오면 지금 돌고 있는 걸 보기 어렵다. */
-const 기본상태 = "운영중";
+/** 기본은 "게재중" = 종료가 아닌 것 전부(운영중 + 신규).
+ *
+ *  전에는 기본이 "운영중"이었는데, 신규도 지금 돌고 있는 광고다. 그래서 라이브
+ *  336건 중 69건이 기본 화면에서 빠져 있었다. 한화손보 TM은 22건이 살아 있는데
+ *  9건만 보였다. 종료까지 다 나오면 지금 돌고 있는 걸 보기 어려우니, 종료만 뺀다. */
+const 기본상태 = "게재중";
 
 const 운영일수_구간: Record<string, [number, number]> = {
   "1-10일": [1, 10],
@@ -33,7 +37,9 @@ function 조건절(조건: 검색조건) {
   const [최소, 최대] = 운영일수_구간[조건.운영일수 ?? ""] ?? [-1, 100000];
   const 검색어 = (조건.q ?? "").trim();
   return sql`
-        (${상태} = '전체' or status = ${상태})
+        (${상태} = '전체'
+     or (${상태} = '게재중' and status <> '종료')
+     or status = ${상태})
     and (${검색어} = '' or ad_text ilike ${"%" + 검색어 + "%"}
                         or advertiser ilike ${"%" + 검색어 + "%"})
     and (${조건.그룹 ?? ""} = '' or coalesce(advertiser_group, advertiser) = ${조건.그룹 ?? ""})
@@ -66,7 +72,7 @@ export default async function 탐색({
 
   let 행들: 광고[] = [];
   let 목록: Record<string, 값개수[]> = {};
-  let 전체현황 = { 전체: 0, 운영중: 0, 광고주: 0, 미분류: 0 };
+  let 전체현황 = { 전체: 0, 게재중: 0, 광고주: 0, 미분류: 0 };
   let 오류: string | null = null;
 
   try {
@@ -82,7 +88,7 @@ export default async function 탐색({
       선택지("insurance_type", 조건),
       선택지("appeal_point", 조건),
       sql`select count(*)::int 전체,
-                 count(*) filter (where status = '운영중')::int 운영중,
+                 count(*) filter (where status <> '종료')::int 게재중,
                  count(distinct coalesce(advertiser_group, advertiser))::int 광고주,
                  count(*) filter (where creative_type is null or creative_type = '')::int 미분류
           from ads` as unknown as Promise<(typeof 전체현황)[]>,
@@ -119,7 +125,7 @@ export default async function 탐색({
 
   // 상태·구분·운영일수는 지금 조건 안에서 세면 항상 자기 자신만 남아 의미가 없다.
   // 건수 없이 선택지만 보여준다.
-  const 상태목록: 값개수[] = ["운영중", "신규", "종료", "전체"].map((v) => ({ v, n: 0 }));
+  const 상태목록: 값개수[] = ["게재중", "운영중", "신규", "종료", "전체"].map((v) => ({ v, n: 0 }));
   const 구분목록: 값개수[] = [
     { v: "자사", n: 0 },
     { v: "경쟁사", n: 0 },
@@ -137,7 +143,7 @@ export default async function 탐색({
 
       {!오류 && (
         <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <지표 값={전체현황.운영중} 단위="건" 설명="지금 게재 중인 소재" />
+          <지표 값={전체현황.게재중} 단위="건" 설명="지금 게재 중인 소재" />
           <지표 값={전체현황.전체} 단위="건" 설명="지금까지 수집한 전체" />
           <지표 값={전체현황.광고주} 단위="곳" 설명="감시 중인 광고주" />
           <지표 값={전체현황.미분류} 단위="건" 설명="분류가 비어 있는 소재" />
@@ -170,7 +176,7 @@ export default async function 탐색({
       </form>
 
       <div className="mb-7 rounded-xl border border-[#e9eaee] bg-white px-4 py-2">
-        <칩줄 제목="상태" 키="상태" 현재값={상태 === 기본상태 ? "운영중" : 상태} 목록={상태목록} 조건={조건} />
+        <칩줄 제목="상태" 키="상태" 현재값={상태} 목록={상태목록} 조건={조건} />
         <칩줄 제목="구분" 키="구분" 현재값={조건.구분 ?? ""} 목록={구분목록} 조건={조건} />
         <칩줄 제목="소재유형" 키="소재유형" 현재값={조건.소재유형 ?? ""} 목록={목록.소재유형 ?? []} 조건={조건} />
         <칩줄 제목="소구포인트" 키="소구포인트" 현재값={조건.소구포인트 ?? ""} 목록={목록.소구포인트 ?? []} 조건={조건} />

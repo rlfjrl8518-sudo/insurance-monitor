@@ -35,8 +35,10 @@ def 실행():
 
     nvidia_키 = 설정.get("nvidia", {}).get("api_key", "")
     if not nvidia_키 or "여기에_" in nvidia_키:
-        print("NVIDIA API 키가 설정되지 않았습니다. .env의 NVIDIA_API_KEY를 채워주세요.")
-        return
+        # 여기서 조용히 0으로 끝내면 워크플로가 초록불이 된다. 실제로 그렇게
+        # 며칠치가 분류되지 않은 채 "성공"으로 지나갔다. 키가 없으면 빨간불로 세운다.
+        print("NVIDIA API 키가 없습니다. GitHub Secrets의 NVIDIA_API_KEY를 확인하세요.")
+        raise SystemExit(1)
 
     csv_경로 = 경로_절대화(설정["paths"]["csv_file"])
     이미지_폴더 = 경로_절대화(설정["paths"]["images_dir"])
