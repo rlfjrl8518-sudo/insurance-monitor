@@ -21,3 +21,9 @@ test-results/
 
 # 그림자 수집 관측 로그 (분석용, 저장소에는 올리지 않음)
 data/gql_shadow.jsonl
+
+# 웹앱
+web/node_modules/
+web/.next/
+web/.vercel/
+web/.env*.local
