@@ -927,10 +927,9 @@
     </select>
 
     <select id="상태필터" onchange="필터적용()">
-      <option value="진행중" selected>진행중 (신규+운영중)</option>
+      <option value="운영중" selected>운영중만</option>
       <option value="전체">상태: 전체</option>
       <option value="신규">신규만</option>
-      <option value="운영중">운영중만</option>
       <option value="종료">종료만</option>
     </select>
 
@@ -1567,7 +1566,7 @@
       });
       필터옵션채우기();
       document.getElementById("구분필터").value = "전체";
-      document.getElementById("상태필터").value = "진행중";
+      document.getElementById("상태필터").value = "운영중";
       document.getElementById("운영일수필터").value = "";
       ["기간_부터", "기간_까지"].forEach(function (id) {
         document.getElementById(id).value = "";
@@ -1592,13 +1591,7 @@
         if (다중선택상태.보종.length && 다중선택상태.보종.indexOf(행.보종) === -1) return false;
         if (다중선택상태.소구포인트.length && 다중선택상태.소구포인트.indexOf(행.소구포인트) === -1) return false;
         if (구분 !== "전체" && 행.__구분 !== 구분) return false;
-        if (상태 === "진행중") {
-          // 신규는 별도 상태가 아니라 운영 초기 구간이므로(csv_store.상태_계산)
-          // 지금 게재 중인 소재는 신규 + 운영중이다.
-          if (행.상태 === "종료") return false;
-        } else if (상태 !== "전체" && 행.상태 !== 상태) {
-          return false;
-        }
+        if (상태 !== "전체" && 행.상태 !== 상태) return false;
         if (운영일수필터값) {
           var 일수 = Number(행.운영일수 || 0);
           if (운영일수필터값 === "1-10" && (일수 < 1 || 일수 > 10)) return false;
