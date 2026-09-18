@@ -16,6 +16,7 @@
     "model": "deepseek-ai/deepseek-v4-flash-0731",
     "vision_model": "meta/llama-3.2-11b-vision-instruct",
     "thinking": false,
+    "extended_labels": false,
     "max_tokens": 2000,
     "timeout": 150,
     "vision_timeout": 60,
