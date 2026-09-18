@@ -927,6 +927,7 @@
     </select>
 
     <select id="상태필터" onchange="필터적용()">
+      <option value="진행중" selected>진행중 (신규+운영중)</option>
       <option value="전체">상태: 전체</option>
       <option value="신규">신규만</option>
       <option value="운영중">운영중만</option>
@@ -948,10 +949,6 @@
       ~
       <input type="date" id="기간_까지" onchange="필터적용()">
     </label>
-
-    <select id="그룹필터" onchange="필터적용()">
-      <option value="전체">그룹: 전체</option>
-    </select>
 
     <button id="필터초기화버튼" onclick="필터초기화()">필터 초기화</button>
     </div>
@@ -1346,21 +1343,6 @@
       return 결과.concat(미등록.sort());
     }
 
-    // 그룹 필터 셀렉트(엘리먼트id)의 옵션을 존재그룹목록 기준으로 채운다.
-    function 그룹필터옵션채우기(엘리먼트id, 기본옵션텍스트) {
-      var 셀렉트 = document.getElementById(엘리먼트id);
-      var 현재값 = 셀렉트.value || "전체";
-      var 그룹목록 = 존재그룹목록();
-      셀렉트.innerHTML = '<option value="전체">' + 기본옵션텍스트 + '</option>';
-      그룹목록.forEach(function (이름) {
-        var 옵션 = document.createElement("option");
-        옵션.value = 이름;
-        옵션.textContent = 이름;
-        셀렉트.appendChild(옵션);
-      });
-      셀렉트.value = 그룹목록.indexOf(현재값) !== -1 ? 현재값 : "전체";
-    }
-
     // 각 행의 표시용 광고주명(__표시광고주)과 자사/경쟁사 구분(__구분)을 계산한다.
     // 표시는 언제나 그룹명 기준이다. 그룹에 없는 페이지명은 그 이름 자체를 그룹으로 본다.
     function 표시광고주명_갱신() {
@@ -1491,7 +1473,6 @@
         다중선택버튼갱신(키);
       });
 
-      그룹필터옵션채우기("그룹필터", "그룹: 전체");
     }
 
     function 다중선택패널채우기(키, 목록) {
@@ -1586,9 +1567,8 @@
       });
       필터옵션채우기();
       document.getElementById("구분필터").value = "전체";
-      document.getElementById("상태필터").value = "전체";
+      document.getElementById("상태필터").value = "진행중";
       document.getElementById("운영일수필터").value = "";
-      document.getElementById("그룹필터").value = "전체";
       ["기간_부터", "기간_까지"].forEach(function (id) {
         document.getElementById(id).value = "";
       });
@@ -1602,20 +1582,23 @@
       var 운영일수필터값 = document.getElementById("운영일수필터").value;
       var 기간_부터 = document.getElementById("기간_부터").value;
       var 기간_까지 = document.getElementById("기간_까지").value;
-      var 그룹선택 = document.getElementById("그룹필터").value;
 
       var 광고주카테고리 = 광고주카테고리맵();
-      var 그룹맵 = 광고주그룹맵();
 
       var 결과 = 전체데이터.filter(function (행) {
-        if (그룹선택 !== "전체" && (그룹맵[행.광고주] || 행.광고주) !== 그룹선택) return false;
         if (다중선택상태.카테고리.length && 다중선택상태.카테고리.indexOf(광고주카테고리[행.광고주]) === -1) return false;
         if (다중선택상태.광고주.length && 다중선택상태.광고주.indexOf(행.__표시광고주 || 행.광고주) === -1) return false;
         if (다중선택상태.소재유형.length && 다중선택상태.소재유형.indexOf(행.소재유형) === -1) return false;
         if (다중선택상태.보종.length && 다중선택상태.보종.indexOf(행.보종) === -1) return false;
         if (다중선택상태.소구포인트.length && 다중선택상태.소구포인트.indexOf(행.소구포인트) === -1) return false;
         if (구분 !== "전체" && 행.__구분 !== 구분) return false;
-        if (상태 !== "전체" && 행.상태 !== 상태) return false;
+        if (상태 === "진행중") {
+          // 신규는 별도 상태가 아니라 운영 초기 구간이므로(csv_store.상태_계산)
+          // 지금 게재 중인 소재는 신규 + 운영중이다.
+          if (행.상태 === "종료") return false;
+        } else if (상태 !== "전체" && 행.상태 !== 상태) {
+          return false;
+        }
         if (운영일수필터값) {
           var 일수 = Number(행.운영일수 || 0);
           if (운영일수필터값 === "1-10" && (일수 < 1 || 일수 > 10)) return false;
@@ -3115,7 +3098,7 @@
         if (기준 === "카테고리") {
           다중선택상태.카테고리 = [옵션.그룹명];
         } else {
-          document.getElementById("그룹필터").value = 옵션.그룹명;
+          다중선택상태.광고주 = [옵션.그룹명];
         }
       }
       if (옵션.분류키 && 옵션.분류값) {
