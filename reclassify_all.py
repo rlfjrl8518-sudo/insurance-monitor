@@ -27,6 +27,9 @@ from src.sheets_sync import (
     구글_인증, 설정_시트_초기화, 워크시트_가져오기, 시트_동기화, 설정_동적_적용,
 )
 
+# 레이트리밋이 이 횟수를 넘으면 할당량이 실제로 바닥난 것으로 보고 남은 건을 포기한다.
+할당량_실패_허용_횟수 = 20
+
 # 몇 건마다 CSV에 중간 저장할지 (중간에 끊겨도 여기까지는 보존)
 체크포인트_간격 = 25
 
@@ -118,9 +121,13 @@ def 실행():
     실패_목록 = []
     임시_파일_목록 = []   # list.append는 GIL 덕에 스레드에서 그대로 써도 안전하다
     성공_개수 = 0
+    # 무료 티어는 순간 혼잡으로도 레이트리밋을 뱉으므로 한 건으로 중단하지 않는다.
     중단 = threading.Event()
+    할당량_실패 = 0
+    실패_잠금 = threading.Lock()
 
     def 한건(ad_id):
+        nonlocal 할당량_실패
         """이미지를 확보해 한 건 분류한다. 결과는 (ad_id, 방법, 결과, 오류)."""
         if 중단.is_set():
             return ad_id, "텍스트전용", None, "중단"
@@ -137,7 +144,10 @@ def 실행():
             return ad_id, 방법, 결과, None
         except Exception as e:
             if type(e).__name__ in ("RateLimitError", "ResourceExhausted", "TooManyRequests"):
-                중단.set()
+                with 실패_잠금:
+                    할당량_실패 += 1
+                    if 할당량_실패 >= 할당량_실패_허용_횟수:
+                        중단.set()
             return ad_id, 방법, None, e
 
     try:

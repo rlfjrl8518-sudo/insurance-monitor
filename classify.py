@@ -18,6 +18,11 @@ from src.sheets_sync import 설정_동적_적용
 # 의미가 없어 제거했다.
 
 
+# 레이트리밋이 이 횟수를 넘으면 할당량이 실제로 바닥난 것으로 보고 남은 건을 포기한다.
+# 무료 티어는 순간 혼잡으로도 레이트리밋이 나므로 한두 건으로 중단하면 안 된다.
+할당량_실패_허용_횟수 = 10
+
+
 def _할당량_초과_예외인가(e):
     """더 던져봐야 소용없는 할당량/레이트리밋 예외인지 확인한다."""
     return type(e).__name__ in ("RateLimitError", "ResourceExhausted", "TooManyRequests")
@@ -69,10 +74,15 @@ def 실행():
         return
 
     client = 모델_생성(설정)
-    # 할당량이 바닥나면 남은 건을 계속 던져봐야 전부 실패하므로 즉시 접는다.
+    # 할당량이 정말 바닥났으면 남은 건을 던져봐야 전부 실패하므로 접는다.
+    # 다만 무료 티어는 순간 혼잡으로도 레이트리밋을 뱉으므로 한 건으로는 판단하지
+    # 않는다 (SDK가 이미 nvidia.max_retries만큼 재시도한 뒤 올라온 실패다).
     중단 = threading.Event()
+    할당량_실패 = 0
+    실패_잠금 = threading.Lock()
 
     def 한건(행):
+        nonlocal 할당량_실패
         if 중단.is_set():
             return 행, None, "중단"
         이미지_경로 = _이미지_경로(행)
@@ -84,7 +94,10 @@ def 실행():
             return 행, 결과, None
         except Exception as e:
             if _할당량_초과_예외인가(e):
-                중단.set()
+                with 실패_잠금:
+                    할당량_실패 += 1
+                    if 할당량_실패 >= 할당량_실패_허용_횟수:
+                        중단.set()
             return 행, None, e
 
     성공_개수 = 실패_개수 = 0
