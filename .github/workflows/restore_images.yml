@@ -1,4 +1,4 @@
-name: 이미지 주소 복구
+name: 유지보수 작업
 
 # 구글시트 자격 증명과 DATABASE_URL이 여기에만 있어서, 로컬 대신 여기서 돌린다.
 # 수집은 건드리지 않고 이미지 주소만 고친다.
@@ -6,9 +6,9 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: "drive = 드라이브 사본으로 교체 / blob = Blob 주소로 되돌리기"
+        description: "drive = 드라이브 사본으로 교체 / blob = Blob 주소로 되돌리기 / settings = 시트 설정을 대시보드로 가져오기"
         type: choice
-        options: [drive, blob]
+        options: [drive, blob, settings]
         default: drive
       apply:
         description: "실제로 쓰기 (끄면 미리보기만)"
@@ -38,8 +38,11 @@ jobs:
           GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: |
-          script=pull_drive_urls.py
-          if [ "${{ inputs.mode }}" = "blob" ]; then script=restore_blob_urls.py; fi
+          case "${{ inputs.mode }}" in
+            blob)     script=restore_blob_urls.py ;;
+            settings) script=import_sheet_settings.py ;;
+            *)        script=pull_drive_urls.py ;;
+          esac
           if [ "${{ inputs.apply }}" = "true" ]; then
             python "$script" --적용
           else
