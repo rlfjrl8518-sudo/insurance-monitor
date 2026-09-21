@@ -1,0 +1,47 @@
+name: 이미지 주소 복구
+
+# 구글시트 자격 증명과 DATABASE_URL이 여기에만 있어서, 로컬 대신 여기서 돌린다.
+# 수집은 건드리지 않고 이미지 주소만 고친다.
+on:
+  workflow_dispatch:
+    inputs:
+      방식:
+        description: "drive = 드라이브 사본으로 교체 / blob = Blob 주소로 되돌리기"
+        type: choice
+        options: [drive, blob]
+        default: drive
+      적용:
+        description: "실제로 쓰기 (끄면 미리보기만)"
+        type: boolean
+        default: false
+
+jobs:
+  복구:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: 의존성 설치
+        run: pip install -r requirements.txt
+
+      - name: 실행
+        env:
+          GOOGLE_SHEETS_ID: ${{ secrets.GOOGLE_SHEETS_ID }}
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          스크립트=pull_drive_urls.py
+          if [ "${{ inputs.방식 }}" = "blob" ]; then 스크립트=restore_blob_urls.py; fi
+          if [ "${{ inputs.적용 }}" = "true" ]; then
+            python "$스크립트" --적용
+          else
+            python "$스크립트"
+          fi
