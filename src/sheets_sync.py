@@ -18,7 +18,7 @@ import gspread
 from google.oauth2.service_account import Credentials
 
 from src.config_loader import 광고주_목록_생성
-from src.csv_store import KST, CSV_쓰기, CSV_읽기
+from src.csv_store import KST, CSV_쓰기, CSV_읽기, _임시_주소인가
 from src.text_utils import 외국어_소재인가, 채용_소재인가
 
 from datetime import datetime
@@ -439,6 +439,31 @@ def _이미지_업로드_시도(설정, 이미지_폴더, 행, ad_id):
         return ""
 
 
+def _드라이브_주소_채우기(행, 드라이브_url):
+    """CSV 행의 이미지 주소가 만료될 주소면 드라이브 사본 주소로 채운다.
+
+    이미지 사본은 드라이브와 Blob 두 군데에 쌓이는데, 지금까지 CSV(그리고 웹 대시보드가
+    읽는 Postgres)에는 Blob 주소만 들어갔다. 그래서 Blob이 업로드 한도를 넘겨 정지되자
+    새로 수집되는 소재가 전부 만료될 메타 주소를 갖게 됐다.
+
+    드라이브 사본은 같은 파이프라인이 이미 만들고 있고 한도에 걸리지 않는다. Blob 주소가
+    멀쩡하면 그대로 두고, 메타 주소이거나 비어 있을 때만 드라이브 주소로 채운다.
+    그러면 Blob이 막혀 있는 동안에도 이미지가 끊기지 않고, Blob이 살아나면 저절로
+    Blob 주소가 우선한다.
+
+    바꿨으면 True를 돌려준다 (CSV를 다시 써야 하는지 판단용).
+    """
+    if not 드라이브_url:
+        return False
+    현재 = 행.get("이미지URL", "")
+    if 현재 and not _임시_주소인가(현재):
+        return False
+    if 현재 == 드라이브_url:
+        return False
+    행["이미지URL"] = 드라이브_url
+    return True
+
+
 def 시트_동기화(설정, csv_경로, 이미지_폴더, 서비스계정_경로, 강제_분류_덮어쓰기=False):
     """CSV의 광고 데이터를 구글 시트에 동기화한다.
 
@@ -477,6 +502,7 @@ def 시트_동기화(설정, csv_경로, 이미지_폴더, 서비스계정_경�
     신규_개수 = 0
     갱신_개수 = 0
     삭제_개수 = 0
+    보강_개수 = 0   # CSV의 만료될 이미지 주소를 드라이브 사본 주소로 채운 건수
 
     for ad_id, 행 in 전체_데이터.items():
         외국어_소재 = 외국어_소재인가(행.get("광고텍스트"))
@@ -527,6 +553,9 @@ def 시트_동기화(설정, csv_경로, 이미지_폴더, 서비스계정_경�
                 셀주소 = gspread.utils.rowcol_to_a1(행번호, 이미지url_열 + 1)
                 갱신_요청.append({"range": 셀주소, "values": [[최종_이미지url]]})
 
+            if _드라이브_주소_채우기(행, 최종_이미지url):
+                보강_개수 += 1
+
             갱신_개수 += 1
         else:
             if 외국어_소재 or 채용_소재:
@@ -535,6 +564,9 @@ def 시트_동기화(설정, csv_경로, 이미지_폴더, 서비스계정_경�
             이미지URL = _이미지_업로드_시도(설정, 이미지_폴더, 행, ad_id)
             if not 이미지URL:
                 continue
+
+            if _드라이브_주소_채우기(행, 이미지URL):
+                보강_개수 += 1
 
             새_행_목록.append([
                 이미지URL if 컬럼 == "이미지URL" else 행.get(컬럼, "")
@@ -588,10 +620,12 @@ def 시트_동기화(설정, csv_경로, 이미지_폴더, 서비스계정_경�
             worksheet.append_rows(새_행_목록, value_input_option="USER_ENTERED")
 
     제거_ad_id_목록 = 외국어_제거_ad_id_목록 + 채용_제거_ad_id_목록
-    if 제거_ad_id_목록:
-        for ad_id in 제거_ad_id_목록:
-            del 전체_데이터[ad_id]
+    for ad_id in 제거_ad_id_목록:
+        del 전체_데이터[ad_id]
+    if 제거_ad_id_목록 or 보강_개수:
         CSV_쓰기(csv_경로, 전체_데이터)
+    if 보강_개수:
+        print(f"이미지 주소를 드라이브 사본으로 채운 행: {보강_개수:,}건")
 
     return 신규_개수, 갱신_개수, 삭제_개수
 
