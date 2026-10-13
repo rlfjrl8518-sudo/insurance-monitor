@@ -1,10 +1,10 @@
 import { sql } from "@/lib/db";
-import { 광고주_저장, 분류값_저장, 분류규칙_저장, 모델_저장 } from "./actions";
+import { 광고주_저장, 그룹_저장, 분류값_저장, 분류규칙_저장, 모델_저장 } from "./actions";
 
 export const dynamic = "force-dynamic";
 
 type 설정행 = { key: string; value: unknown; updated_at: Date | string };
-type 수집현황 = { advertiser: string; n: number; 최근: string | null; 운영중: number };
+type 수집현황 = { advertiser: string; n: number; 최근: string | null; 운영중: number; 그룹: string | null };
 
 const 분류축 = ["소재유형", "보종", "소구포인트"] as const;
 
@@ -28,7 +28,7 @@ export default async function 설정() {
   try {
     const [a, b] = await Promise.all([
       sql`select key, value, updated_at from settings` as unknown as Promise<설정행[]>,
-      sql`select advertiser, count(*)::int n,
+      sql`select advertiser, max(advertiser_group) 그룹, count(*)::int n,
                  max(collected_on)::text 최근,
                  count(*) filter (where status <> '종료')::int 운영중
           from ads group by 1 order by 최근 asc nulls first, n desc` as unknown as Promise<수집현황[]>,
@@ -43,6 +43,14 @@ export default async function 설정() {
   const 분류값: Record<string, string[]> = 저장됨.classification ?? {};
   const 규칙: Record<string, string> = 저장됨.classification_rules ?? {};
   const 모델: Record<string, string> = 저장됨.nvidia_models ?? {};
+  // 웹에서 저장한 그룹이 없으면, 지금 DB에 들어가 있는 묶음(수집 파이프라인이 채운 값)을 보여준다.
+  const 그룹: Record<string, string[]> = 저장됨.advertiser_groups ?? {};
+  if (!저장됨.advertiser_groups) {
+    for (const r of 현황) if (r.그룹) (그룹[r.그룹] ??= []).push(r.advertiser);
+  }
+  const 묶인페이지 = new Set(Object.values(그룹).flat());
+  const 미지정 = 현황.map((r) => r.advertiser).filter((a) => !묶인페이지.has(a)).sort();
+
   const 카테고리이름 =
     Object.keys(카테고리).length > 0 ? Object.keys(카테고리) : ["손해보험", "생명보험", "GA"];
 
@@ -136,6 +144,50 @@ export default async function 설정() {
             />
             <button className="ml-auto rounded-full bg-[#334fff] px-5 py-2 text-[13px] font-semibold text-white">
               광고주 저장
+            </button>
+          </div>
+        </form>
+      </section>
+
+      <section className="mt-8">
+        <h2 className="mb-1 text-[14px] font-bold">광고주 그룹</h2>
+        <p className="mb-3 text-[12px] leading-relaxed text-[#8a8f98]">
+          같은 회사의 여러 페이지(채널)를 그룹명 하나로 묶어 탐색·교차분석 등에서 한 광고주로 봅니다.
+          한 줄에 페이지명 하나, 페이지명은 위 수집 현황과 똑같이 적습니다. 그룹명을 비우고 저장하면 그 그룹은 지워집니다.
+          저장하면 바로 반영됩니다.
+        </p>
+        <form action={그룹_저장} className="rounded-xl border border-[#e9eaee] bg-white p-5">
+          <div className="grid gap-4 md:grid-cols-3">
+            {Object.entries(그룹).map(([이름, 페이지들], i) => (
+              <div key={이름}>
+                <input
+                  name={`grpname:${i}`}
+                  defaultValue={이름}
+                  className="mb-1.5 w-full rounded-lg border border-[#e4e6eb] px-3 py-1.5 text-[12px] font-semibold outline-none focus:border-[#334fff]"
+                />
+                <textarea
+                  name={`grppages:${i}`}
+                  rows={5}
+                  defaultValue={페이지들.join("\n")}
+                  className="w-full rounded-lg border border-[#e4e6eb] px-3 py-2 font-mono text-[12px] leading-relaxed outline-none focus:border-[#334fff]"
+                />
+              </div>
+            ))}
+          </div>
+          {미지정.length > 0 && (
+            <p className="mt-4 text-[12px] leading-relaxed text-[#8a8f98]">
+              <span className="font-semibold text-[#5c626d]">그룹 없는 페이지</span> (페이지명 그대로 표시됨):{" "}
+              {미지정.join(" · ")}
+            </p>
+          )}
+          <div className="mt-4 flex items-center gap-2">
+            <input
+              name="새그룹"
+              placeholder="그룹 추가 (예: 삼성화재)"
+              className="rounded-lg border border-[#e4e6eb] px-3 py-2 text-[12px] outline-none focus:border-[#334fff]"
+            />
+            <button className="ml-auto rounded-full bg-[#334fff] px-5 py-2 text-[13px] font-semibold text-white">
+              그룹 저장
             </button>
           </div>
         </form>

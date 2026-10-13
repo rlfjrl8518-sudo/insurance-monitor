@@ -35,6 +35,29 @@ export async function 광고주_저장(formData: FormData) {
   await 저장("advertiser_categories", 카테고리);
 }
 
+/** 광고주 그룹. 같은 회사의 여러 페이지(채널)를 그룹명 하나로 묶는다.
+ *
+ *  저장하자마자 ads.advertiser_group도 다시 채운다. 다음 수집까지 기다리지 않고 탐색·교차분석에 바로 보이게. */
+export async function 그룹_저장(formData: FormData) {
+  const 그룹: Record<string, string[]> = {};
+  for (const [이름, 값] of formData.entries()) {
+    if (!이름.startsWith("grpname:")) continue;
+    const 그룹명 = String(값).trim();
+    if (그룹명) 그룹[그룹명] = 줄목록(formData.get(`grppages:${이름.slice(8)}`));
+  }
+  const 새그룹 = String(formData.get("새그룹") ?? "").trim();
+  if (새그룹 && !(새그룹 in 그룹)) 그룹[새그룹] = [];
+
+  await sql`
+    update ads set advertiser_group = (
+      select e.key from jsonb_each(${JSON.stringify(그룹)}::jsonb) e
+      where e.value ? ads.advertiser limit 1
+    )
+  `;
+  await 저장("advertiser_groups", 그룹);
+  revalidatePath("/", "layout");
+}
+
 /** 분류 축별 선택지 목록 (소재유형 / 보종 / 소구포인트). */
 export async function 분류값_저장(formData: FormData) {
   await 저장("classification", {

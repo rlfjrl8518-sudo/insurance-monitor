@@ -61,6 +61,32 @@ def 행_변환(행):
     return 레코드
 
 
+def 광고주그룹_읽기(설정):
+    """구글시트 "광고주그룹" 탭에서 {광고주(페이지명): 그룹명}을 만든다.
+
+    헤더가 그룹명, 그 아래 셀이 묶을 페이지명이다 (Apps Script 대시보드 설정 화면이 쓰는 형식).
+    대시보드와 똑같이 페이지명 완전일치로 묶는다. 읽지 못하면 None.
+    """
+    서비스계정_경로 = 경로_절대화(설정["google_sheets"]["service_account_file"])
+    if "여기에_" in 설정["google_sheets"]["spreadsheet_id"] or not os.path.exists(서비스계정_경로):
+        return None
+    try:
+        from src.sheets_sync import 구글_인증
+        값 = (구글_인증(서비스계정_경로)
+             .open_by_key(설정["google_sheets"]["spreadsheet_id"])
+             .worksheet("광고주그룹").get_all_values())
+    except Exception as e:
+        print(f"광고주그룹 시트를 읽지 못해 그룹명은 그대로 둡니다: {e}")
+        return None
+    if not 값:
+        return None
+    return {
+        str(행[열]).strip(): 그룹명.strip()
+        for 열, 그룹명 in enumerate(값[0]) if 그룹명.strip()
+        for 행 in 값[1:] if 열 < len(행) and str(행[열]).strip()
+    }
+
+
 def 실행():
     접속 = os.environ.get("DATABASE_URL")
     if not 접속:
@@ -81,6 +107,23 @@ def 실행():
     if not 행들:
         print("CSV가 비어 있어 적재를 건너뜁니다.")
         return 0
+
+    # 같은 회사의 여러 페이지(채널)를 그룹명 하나로 묶는다. 웹은 coalesce(advertiser_group, advertiser)로 보여준다.
+    # 웹 설정 화면에서 저장한 그룹이 있으면 그게 전부다 ("웹이 이긴다", 그룹 삭제도 반영되게 통째로 쓴다).
+    # 없으면 config.json "advertiser_groups" 기본 묶음 위에 시트 "광고주그룹" 탭을 덮는다.
+    # ponytail: 시트 읽기가 실패한 회차엔 기본 묶음만 반영된다. 웹 설정으로 옮기면 사라지는 문제.
+    from src.settings_store import 설정_읽기
+    def 펼침(묶음):
+        return {페이지: 그룹명 for 그룹명, 페이지들 in 묶음.items() for 페이지 in 페이지들}
+
+    웹그룹 = 설정_읽기().get("advertiser_groups")
+    if 웹그룹:
+        그룹 = 펼침(웹그룹)
+    else:
+        그룹 = {**펼침(설정.get("advertiser_groups", {})), **(광고주그룹_읽기(설정) or {})}
+    for r in 행들:
+        r["advertiser_group"] = 그룹.get((r["advertiser"] or "").strip())
+    print(f"광고주그룹 {len(set(그룹.values()))}개 반영 (페이지 {len(그룹)}개)")
 
     열 = list(행들[0].keys())
     자리 = ", ".join(f"%({c})s" for c in 열)
