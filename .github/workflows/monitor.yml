@@ -16,6 +16,11 @@ on:
 permissions:
   contents: write
 
+# 예약 실행이 밀려 수동 실행과 겹치면 같은 CSV를 동시에 고쳐 push가 깨진다. 한 번에 하나만.
+concurrency:
+  group: monitor
+  cancel-in-progress: false
+
 jobs:
   monitor:
     runs-on: ubuntu-latest
@@ -50,16 +55,18 @@ jobs:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: python main.py | tee collect.log
 
-      - name: 2단계 - AI 분류
+      - name: 2단계 - AI 분류 (Vertex AI Gemini)
         if: ${{ inputs.skip_classification != true }}
         env:
-          NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
+          GCP_SERVICE_ACCOUNT_JSON: ${{ secrets.GCP_SERVICE_ACCOUNT_JSON }}
+          GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
           GOOGLE_SHEETS_ID: ${{ secrets.GOOGLE_SHEETS_ID }}
           GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: python classify.py | tee classify.log
 
       - name: 3단계 - Google Sheets 동기화
+        if: ${{ always() }}
         env:
           GOOGLE_SHEETS_ID: ${{ secrets.GOOGLE_SHEETS_ID }}
           GOOGLE_DRIVE_FOLDER_ID: ${{ secrets.GOOGLE_DRIVE_FOLDER_ID }}
@@ -90,12 +97,15 @@ jobs:
             collect.log
             classify.log
             sync.log
+            postgres.log
+            data/health.json
           retention-days: 30
 
       - name: 변경된 데이터 커밋
+        if: ${{ always() }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add data/ads.csv
+          git add data/ads.csv data/pages.json data/health.json
           git diff --cached --quiet || git commit -m "데이터 갱신: $(TZ='Asia/Seoul' date +'%Y-%m-%d %H:%M %Z')"
-          git push
+          git pull --rebase --autostash -q && git push

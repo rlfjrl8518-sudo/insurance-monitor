@@ -7,6 +7,7 @@
   광고주 프로필 이미지의 고유 클래스(_8nqq)를 기준으로 카드를 식별한다.
 """
 
+import json
 import os
 import re
 import unicodedata
@@ -132,19 +133,6 @@ def 광고주_해석(항목):
     검색어, _, 페이지명 = (항목 or "").partition(">")
     검색어 = 검색어.strip()
     return 검색어, (페이지명.strip() or 검색어)
-
-
-def 검색_URL_생성(광고주명, 설정):
-    """광고주명으로 Meta 광고 라이브러리 검색 URL을 생성한다."""
-    쿼리 = {
-        "active_status": 설정["scraping"]["active_status"],
-        "ad_type": 설정["scraping"]["ad_type"],
-        "country": 설정["scraping"]["country"],
-        "q": 광고주명,
-        "search_type": "keyword_unordered",
-        "media_type": "all",
-    }
-    return 광고라이브러리_기본URL + "?" + urlencode(쿼리)
 
 
 def 카드_텍스트_파싱(raw_text, 페이지명):
@@ -274,125 +262,169 @@ def 이미지_다운로드(page, 이미지_url, 저장_경로):
     return True
 
 
-def 광고주_광고_수집(page, 광고주명, 설정, 진행_콜백=print):
-    """한 광고주에 대해 검색 -> 스크롤 -> 카드 추출을 수행하고 결과 목록을 반환한다."""
-    검색어, 실제_페이지명 = 광고주_해석(광고주명)
-    url = 검색_URL_생성(검색어, 설정)
-    진행_콜백(f"  검색 페이지 이동: {url}")
+def 광고주_광고_수집(page, 광고주항목, 설정, 페이지캐시, 진행_콜백=print):
+    """광고주 한 곳의 게재 중 광고를 모은다.
+
+    결과: {"광고": [...], "표시건수": int|None, "수집률": float|None, "page_id": str|None,
+          "후보": [(페이지명, page_id)], "상태": "정상"|"게재없음"|"페이지없음"|"읽기실패", "메시지": str}
+
+    키워드 검색은 남의 페이지가 섞이고(“삼성화재” 검색 시 40여 개 페이지), 비로그인 상태에선
+    다음 페이지 요청이 'Rate limit exceeded'로 막혀 첫 30건만 온다. 그래서 페이지 ID로
+    그 광고주 광고만 조회한다. 30건을 넘으면 매체 유형(이미지/동영상/밈)으로 나눠 다시 읽는다.
+    """
+    검색어, 페이지명 = 광고주_해석(광고주항목)
+    목표 = 페이지명_정규화(페이지명)
+    후보 = []
+
+    page_id = 페이지캐시.get(목표)
+    if not page_id:
+        page_id, 후보 = 페이지ID_찾기(page, 검색어, 페이지명, 설정, 진행_콜백)
+        if page_id:
+            페이지캐시[목표] = page_id
+    if not page_id:
+        return {"광고": [], "표시건수": None, "수집률": None, "page_id": None, "후보": 후보,
+                "상태": "페이지없음",
+                "메시지": f"'{검색어}' 검색 결과에서 페이지명 '{페이지명}'을 찾지 못함"}
+
+    결과 = 결과_읽기(page, 페이지_URL(page_id, 설정), 설정)
+    if 결과 is None:
+        return {"광고": [], "표시건수": None, "수집률": None, "page_id": page_id, "후보": 후보,
+                "상태": "읽기실패", "메시지": "광고 라이브러리 응답을 읽지 못함(차단·지연 가능)"}
+    표시건수, 원본 = 결과
+
+    광고들 = {}
+    본_ID = set()   # 걸러내기 전 원본 기준. 수집률은 이걸로 잰다.
+    def 담기(목록):
+        for r in 목록:
+            본_ID.add(str(r.get("ad_archive_id")))
+            광고 = 결과_정리(r)
+            if not 광고 or 광고["라이브러리ID"] in 광고들:
+                continue
+            if 페이지명_정규화(광고["페이지명"]) != 목표 and 광고["page_id"] != page_id:
+                continue
+            if 외국어_소재인가(광고["광고텍스트"]) or 채용_소재인가(광고["광고텍스트"]):
+                continue
+            광고들[광고["라이브러리ID"]] = 광고
+    담기(원본)
+
+    # 첫 화면은 최대 30건. 그보다 많으면 매체 유형별로 나눠 각각의 첫 화면을 더 읽는다.
+    if 표시건수 and len(원본) < 표시건수:
+        for 유형 in ("image", "video", "meme", "none"):
+            추가 = 결과_읽기(page, 페이지_URL(page_id, 설정, 유형), 설정)
+            if 추가:
+                담기(추가[1])
+
+    수집률 = 1.0 if not 표시건수 else min(1.0, len(본_ID) / 표시건수)
+    상태 = "게재없음" if 표시건수 == 0 else "정상"
+    진행_콜백(f"  page_id={page_id} 표시 {표시건수}건 / 수집 {len(광고들)}건 (수집률 {수집률:.0%})")
+    return {"광고": list(광고들.values()), "표시건수": 표시건수, "수집률": 수집률,
+            "page_id": page_id, "후보": 후보, "상태": 상태, "메시지": ""}
+
+
+def 검색_URL_생성(검색어, 설정):
+    쿼리 = {"active_status": 설정["scraping"]["active_status"], "ad_type": "all",
+           "country": 설정["scraping"]["country"], "q": 검색어,
+           "search_type": "keyword_unordered", "media_type": "all"}
+    return 광고라이브러리_기본URL + "?" + urlencode(쿼리)
+
+
+def 페이지_URL(page_id, 설정, 매체="all"):
+    쿼리 = {"active_status": 설정["scraping"]["active_status"], "ad_type": "all",
+           "country": 설정["scraping"]["country"], "view_all_page_id": page_id,
+           "search_type": "page", "media_type": 매체}
+    return 광고라이브러리_기본URL + "?" + urlencode(쿼리)
+
+
+def SSR_결과_추출(html):
+    """페이지 HTML에 함께 실려 오는 검색 결과 JSON을 꺼낸다. 없으면 None.
+
+    반환: (표시건수, [collated_result, ...])
+    """
+    키 = '"search_results_connection":'
+    i = html.find(키)
+    if i < 0:
+        return None
+    try:
+        연결, _ = json.JSONDecoder().raw_decode(html[i + len(키):])
+    except ValueError:
+        return None
+    결과 = [r for e in 연결.get("edges") or [] for r in (e.get("node") or {}).get("collated_results") or []]
+    return 연결.get("count"), 결과
+
+
+def 결과_읽기(page, url, 설정):
     page.goto(url, wait_until="domcontentloaded")
     page.wait_for_timeout(int(설정["scraping"]["page_load_wait_seconds"] * 1000))
+    return SSR_결과_추출(page.content())
 
-    최대_스크롤_횟수 = 설정["scraping"]["scroll_count"]
-    스크롤_대기 = int(설정["scraping"]["scroll_wait_seconds"] * 1000)
-    무변화_허용_횟수 = 설정["scraping"]["scroll_stable_count"]
 
-    # 화면 밖으로 벗어난 카드는 이미지가 지연 로딩 해제되어 imageUrl을 잃어버릴 수
-    # 있으므로, 스크롤이 끝난 뒤 한 번만 추출하지 않고 스크롤마다 누적 추출한다
-    # (library_id 기준 중복 제거는 아래에서 처리).
-    # 또한 새로 로드되는 프로필 이미지(_8nqq) 개수가 더 이상 늘지 않으면 스크롤을
-    # 멈춘다 (최대_스크롤_횟수는 무한 스크롤에 빠지지 않도록 하는 안전장치).
-    원본_카드_목록 = list(page.evaluate(JS_카드_추출))
-    이전_카드_수 = page.evaluate("() => document.querySelectorAll('img._8nqq').length")
-    무변화_횟수 = 0
-    실제_스크롤_횟수 = 0
-    정지_사유 = "최대 스크롤 횟수 도달"
-    for i in range(최대_스크롤_횟수):
-        실제_스크롤_횟수 = i + 1
-        # 마우스 휠 스크롤(기존 방식, 실제로 카드를 늘려온다는 게 로그로 확인됨)에
-        # 더해, 문서 자체가 스크롤 컨테이너인 경우까지 커버하도록 "그 시점의 문서
-        # 맨 아래"로도 스크롤한다. 둘 중 실제로 반응하는 쪽이 지연 로딩을 트리거한다.
-        page.mouse.wheel(0, 4000)
-        page.evaluate("() => window.scrollTo(0, document.body.scrollHeight)")
-        page.wait_for_timeout(스크롤_대기)
-        원본_카드_목록.extend(page.evaluate(JS_카드_추출))
+def 페이지ID_찾기(page, 검색어, 페이지명, 설정, 진행_콜백=print):
+    """키워드 검색 결과에서 페이지명이 정확히 같은 페이지의 ID를 찾는다.
 
-        현재_카드_수 = page.evaluate("() => document.querySelectorAll('img._8nqq').length")
-        if 현재_카드_수 <= 이전_카드_수:
-            무변화_횟수 += 1
-            if 무변화_횟수 >= 무변화_허용_횟수:
-                정지_사유 = f"카드 수 안정({무변화_횟수}회 연속 무변화)"
-                break
-        else:
-            무변화_횟수 = 0
-        이전_카드_수 = 현재_카드_수
+    못 찾으면 등록명을 품은 다른 페이지명을 후보로 돌려준다(사람이 판단하도록).
+    """
+    결과 = 결과_읽기(page, 검색_URL_생성(검색어, 설정), 설정)
+    if not 결과:
+        return None, []
+    목표 = 페이지명_정규화(페이지명)
+    집계 = Counter()
+    아이디 = {}
+    for r in 결과[1]:
+        이름 = (r.get("page_name") or "").strip()
+        if 페이지명_정규화(이름) == 목표:
+            return str(r.get("page_id")), []
+        집계[이름] += 1
+        아이디[이름] = str(r.get("page_id"))
+    후보 = [(이름, 아이디[이름]) for 이름, _ in _근접_후보(페이지명, 집계)]
+    if 후보:
+        진행_콜백(f"  [확인 필요] '{페이지명}' 대신 보이는 페이지: {', '.join(n for n, _ in 후보)}")
+    return None, 후보
 
-    진행_콜백(f"  스크롤 {실제_스크롤_횟수}/{최대_스크롤_횟수}회 후 정지 - {정지_사유} (마지막 프로필 이미지 수: {이전_카드_수})")
 
-    진행_콜백(f"  추출된 원본 카드 수: {len(원본_카드_목록)} (스크롤 단계별 누적, 중복 포함)")
+def _KST_날짜(유닉스):
+    if not 유닉스:
+        return ""
+    from datetime import datetime, timedelta, timezone
+    return datetime.fromtimestamp(int(유닉스), timezone(timedelta(hours=9))).strftime("%Y-%m-%d")
 
-    결과 = []
-    수집된_library_id = set()
-    페이지명_불일치_수 = 0
-    불일치_페이지명_집계 = Counter()
-    목표_페이지명 = 페이지명_정규화(실제_페이지명)
-    for 카드 in 원본_카드_목록:
-        if not 카드.get("imageUrl"):
-            continue
 
-        # 설정 시트 검색어(광고주명)와 실제 페이지명이 일치하지 않으면 제외
-        # (예: "삼성화재" 검색 시 "삼성화재다이렉트", "삼성화재생명" 등은 수집하지 않음)
-        # 공백 종류/개수/유무 차이는 페이지명_정규화로 무시하되, 그 외의 실질적인 이름
-        # 차이(다른 페이지)는 여전히 걸러낸다.
-        실제_페이지명 = 카드.get("pageName", "").strip()
-        if 페이지명_정규화(실제_페이지명) != 목표_페이지명:
-            페이지명_불일치_수 += 1
-            if 실제_페이지명:
-                불일치_페이지명_집계[실제_페이지명] += 1
-            continue
+def 결과_정리(r):
+    """collated_result 하나를 수집 행으로 바꾼다. 대표 이미지가 없으면 None."""
+    s = r.get("snapshot") or {}
+    카드 = s.get("cards") or []
+    이미지 = s.get("images") or []
+    영상 = s.get("videos") or []
+    대표 = None
+    if 이미지:
+        대표 = 이미지[0].get("original_image_url") or 이미지[0].get("resized_image_url")
+    elif 영상:
+        대표 = 영상[0].get("video_preview_image_url")
+    elif 카드:
+        c = 카드[0]
+        대표 = c.get("original_image_url") or c.get("resized_image_url") or c.get("video_preview_image_url")
+    if not 대표:
+        return None
 
-        library_id, 시작일, 광고텍스트 = 카드_텍스트_파싱(카드["text"], 카드["pageName"])
-        if not library_id:
-            continue
-        if library_id in 수집된_library_id:
-            continue
-        if 외국어_소재인가(광고텍스트):
-            continue
-        if 채용_소재인가(광고텍스트):
-            continue
-        수집된_library_id.add(library_id)
-
-        결과.append({
-            "라이브러리ID": library_id,
-            "이미지URL": 카드["imageUrl"],
-            "광고텍스트": 광고텍스트,
-            "광고시작일": 시작일 or "",
-            "광고상세URL": f"{광고라이브러리_기본URL}?id={library_id}",
-        })
-
-    if 페이지명_불일치_수:
-        진행_콜백(f"  페이지명 불일치로 제외된 카드 수: {페이지명_불일치_수}")
-        # 실제로 어떤 페이지명이 제외됐는지 남겨서, 검색어를 잘못 등록해 광고주의
-        # 진짜 페이지명이 계속 누락되는 경우를 다음 로그에서 바로 찾을 수 있게 한다.
-        상위_불일치 = 불일치_페이지명_집계.most_common(5)
-        if 상위_불일치:
-            요약 = ", ".join(f"'{이름}'({횟수}건)" for 이름, 횟수 in 상위_불일치)
-            진행_콜백(f"  제외된 페이지명 상위: {요약}")
-
-        # 제외된 이름 중 등록 광고주명을 통째로 품고 있는 것(예: 'DB손해보험' 등록에
-        # 'DB손해보험 공식')은 페이지명이 바뀌었을 가능성이 높다. 자동으로 끌어오면
-        # 다른 회사가 섞일 수 있으므로 수집하지 않고, 사람이 판단하도록 알리기만 한다.
-        후보 = _근접_후보(실제_페이지명, 불일치_페이지명_집계)
-        if 후보:
-            요약 = ", ".join(f"'{이름}'({횟수}건)" for 이름, 횟수 in 후보)
-            진행_콜백(f"  [확인 필요] 등록명을 포함하는 제외 페이지명: {요약}")
-            진행_콜백("             같은 광고주라면 구글시트 '설정' 탭에 '검색어>실제페이지명' 형태로 적어주세요.")
-
-    if not 결과 and 원본_카드_목록:
-        # 카드는 긁혔는데 통과가 0건이면 페이지명이 바뀌었을 가능성이 크다.
-        진행_콜백(f"  [경고] 카드 {len(원본_카드_목록)}장을 읽었지만 페이지명 '{실제_페이지명}'과 일치하는 광고가 없습니다.")
-
-    # 그림자 대조: 브라우저가 이미 받은 GraphQL 응답과 위 수집 결과를 비교해 기록만 한다.
-    # 수집 결과(결과)는 손대지 않는다. 실제 누락률을 며칠 모아 본 뒤에
-    # 주 수집원을 GraphQL로 바꿀지 판단하기 위한 관측 장치다.
-    보관함 = 설정.get("_gql_보관함")
-    if 설정["scraping"].get("gql_shadow") and 보관함 is not None:
-        try:
-            from src.gql_shadow import 대조_기록
-            대조_기록(보관함, 광고주명, 수집된_library_id,
-                    설정["paths"].get("gql_shadow_log", "data/gql_shadow.jsonl"), 진행_콜백)
-            보관함.clear()   # 다음 광고주와 섞이지 않게 비운다
-        except Exception as e:
-            # 관측 장치 때문에 수집이 실패하면 안 된다.
-            진행_콜백(f"  [그림자] 대조 실패(무시하고 진행): {type(e).__name__}: {e}")
-
-    return 결과
+    본문 = ((s.get("body") or {}).get("text") or "").strip()
+    if not 본문 and 카드:
+        본문 = (카드[0].get("body") or "").strip()
+    if "{{product." in 본문:   # 카탈로그 광고의 템플릿 자리표시자
+        본문 = (카드[0].get("body") if 카드 else "") or 본문
+    library_id = str(r.get("ad_archive_id"))
+    return {
+        "라이브러리ID": library_id,
+        "page_id": str(r.get("page_id") or s.get("page_id") or ""),
+        "페이지명": (r.get("page_name") or s.get("page_name") or "").strip(),
+        "이미지URL": 대표,
+        "광고텍스트": 본문,
+        "광고시작일": _KST_날짜(r.get("start_date")),
+        "광고상세URL": f"{광고라이브러리_기본URL}?id={library_id}",
+        "게재형식": s.get("display_format") or "",
+        "플랫폼": ",".join(r.get("publisher_platform") or []),
+        "랜딩URL": s.get("link_url") or (카드[0].get("link_url") if 카드 else "") or "",
+        "CTA": s.get("cta_text") or "",
+        "제목": (s.get("title") or "").strip(),
+        "변형수": str(r.get("collation_count") or 1),
+        "묶음ID": str(r.get("collation_id") or ""),
+        "영상URL": (영상[0].get("video_sd_url") or 영상[0].get("video_hd_url") or "") if 영상 else "",
+    }

@@ -1,11 +1,17 @@
-"""NVIDIA NIM API로 광고 이미지+텍스트를 분석해 소재유형/보종/소구포인트/요약으로 분류하는 모듈."""
+"""Vertex AI Gemini로 광고 이미지+텍스트를 한 번에 보고 분류하는 모듈.
 
+이전엔 NVIDIA 무료 티어(OCR 모델 + 분류 모델 2단 호출)를 썼는데, 모델이 예고 없이 내려가
+9/22부터 6주 동안 분류가 0건이었다(410 Gone). 이제는 회사 GCP 프로젝트의 Vertex AI를 쓰고,
+실행할 때마다 후보 모델 중 살아 있는 것을 골라 같은 사고가 다시 나지 않게 한다.
+"""
+
+import base64
 import json
+import os
+import threading
+import urllib.request
 
 분류_결과_키 = ["소재유형", "보종", "소구포인트", "요약"]
-
-# NVIDIA NIM은 OpenAI 호환 엔드포인트라 openai SDK로 그대로 호출한다.
-NVIDIA_기본_URL = "https://integrate.api.nvidia.com/v1"
 
 # 소재유형 분류 규칙.
 # 브랜딩 항목은 실제 라벨과 대조해 다시 쓴 것이다. 원래는 '믿을 수 있는/업계 1위' 같은
@@ -199,6 +205,12 @@ NVIDIA_기본_URL = "https://integrate.api.nvidia.com/v1"
     "긴급성": ["마감 임박", "한정", "없음"],
 }
 
+# 값이 자유 형식인 추출 항목. 광고주별 가격·보장 비교표에 쓴다.
+추출항목 = {
+    "보험료표기": '광고에 적힌 보험료 표기 그대로 (예: "월 9,900원", "1만원대"). 없으면 ""',
+    "보장금액표기": '가장 앞세운 보장 금액 표기 그대로 (예: "최대 5천만원"). 없으면 ""',
+}
+
 
 def _축_안내(축정의):
     return "\n".join(f"- {이름}: {' / '.join(값들)} 중 하나" for 이름, 값들 in 축정의.items())
@@ -274,64 +286,92 @@ def 분류_프롬프트_생성(광고주, 광고텍스트, 설정):
   "소재유형": "{소재유형_목록}",
   "보종": "{보종_목록}",
   "소구포인트": "{소구포인트_목록}",
-  "요약": "핵심 메시지 25자 이내"
+  "요약": "핵심 메시지 25자 이내",
+  "확신도": 0.0~1.0 사이 숫자 (분류에 얼마나 확신하는지)
 }}
 """
 
 
+def _허용값(값, 목록):
+    if 값 in 목록:
+        return 값
+    return "기타" if "기타" in 목록 else ""
+
+
 def _분류결과_검증(결과, 설정):
-    """분류 결과가 허용 목록에 없는 경우 "기타"로 대체한다."""
+    """허용 목록 밖의 값은 '기타'(목록에 없으면 빈 값)로 바꾸고, 확장 축은 허용값만 남긴다."""
     분류기준 = 설정["classification"]
-    if 결과.get("소재유형") not in 분류기준["소재유형"]:
-        결과["소재유형"] = "기타"
-    if 결과.get("보종") not in 분류기준["보종"]:
-        결과["보종"] = "기타"
-    if 결과.get("소구포인트") not in 분류기준["소구포인트"]:
-        결과["소구포인트"] = "기타"
-    결과["요약"] = 결과.get("요약", "")
-    # 확장 축은 허용값이 아니면 아예 담지 않는다. 빈 값이 섞이면 집계할 때 걸러내야 한다.
+    for 축 in ("소재유형", "보종", "소구포인트"):
+        결과[축] = _허용값(결과.get(축), 분류기준[축])
+    결과["요약"] = (결과.get("요약") or "").strip()
+    try:
+        결과["확신도"] = f"{min(1.0, max(0.0, float(결과.get('확신도')))):.2f}"
+    except (TypeError, ValueError):
+        결과["확신도"] = ""
     for 이름, 값들 in {**시각축, **메시지축}.items():
         if 이름 in 결과 and 결과[이름] not in 값들:
             결과.pop(이름)
+    for 이름 in 추출항목:
+        값 = 결과.get(이름)
+        값 = 값.strip() if isinstance(값, str) else ""
+        if 값:
+            결과[이름] = 값[:40]
+        else:
+            결과.pop(이름, None)
     return 결과
 
 
+class 클라이언트:
+    """Vertex AI의 OpenAI 호환 엔드포인트. 액세스 토큰이 1시간마다 만료돼 호출 전에 갱신한다."""
+
+    def __init__(self, 설정):
+        from google.oauth2 import service_account
+        from openai import OpenAI
+
+        ai = 설정["ai"]
+        키파일 = ai.get("service_account_file")
+        if not 키파일 or not os.path.exists(키파일):
+            raise SystemExit("Vertex AI 서비스계정 키가 없습니다. GitHub Secret GCP_SERVICE_ACCOUNT_JSON을 확인하세요.")
+        self._인증 = service_account.Credentials.from_service_account_file(
+            키파일, scopes=["https://www.googleapis.com/auth/cloud-platform"])
+        self._잠금 = threading.Lock()
+        프로젝트 = ai.get("project") or self._인증.project_id
+        위치 = ai.get("location", "global")
+        호스트 = "aiplatform.googleapis.com" if 위치 == "global" else f"{위치}-aiplatform.googleapis.com"
+        self._sdk = OpenAI(api_key="갱신전", max_retries=ai.get("max_retries", 4),
+                           base_url=f"https://{호스트}/v1/projects/{프로젝트}/locations/{위치}/endpoints/openapi")
+        self.모델 = None
+
+    def 호출(self, **인자):
+        import google.auth.transport.requests
+
+        with self._잠금:
+            if not self._인증.valid:
+                self._인증.refresh(google.auth.transport.requests.Request())
+                self._sdk.api_key = self._인증.token
+        return self._sdk.chat.completions.create(model=self.모델, **인자)
+
+    def 모델_고르기(self, 후보):
+        """후보를 순서대로 찔러 보고 응답하는 첫 모델을 쓴다. 전부 안 되면 빨간불."""
+        오류들 = []
+        for 모델 in 후보:
+            self.모델 = 모델
+            try:
+                self.호출(messages=[{"role": "user", "content": "ok"}], max_tokens=5)
+                return 모델
+            except Exception as e:
+                오류들.append(f"{모델}: {type(e).__name__} {str(e)[:80]}")
+        raise SystemExit("쓸 수 있는 분류 모델이 없습니다.\n" + "\n".join(오류들))
+
+
 def 모델_생성(설정):
-    """NVIDIA NIM 클라이언트를 만든다 (OpenAI 호환 엔드포인트라 openai SDK를 그대로 쓴다)."""
-    from openai import OpenAI
-
-    nv = 설정["nvidia"]
-    # 무료 티어는 용량이 차면 503(Worker limit reached)을 자주 돌려주는데 잠시 뒤
-    # 재시도하면 대개 통과하므로 SDK 기본 재시도(2회)보다 넉넉히 준다.
-    return OpenAI(api_key=nv["api_key"],
-                  base_url=nv.get("base_url", NVIDIA_기본_URL),
-                  max_retries=nv.get("max_retries", 4))
-
-
-def _호출옵션(설정):
-    """분류 호출에 붙는 공통 파라미터.
-
-    thinking=False: deepseek-v4-flash는 기본적으로 눈에 안 보이는 추론 토큰을 쏟아낸다.
-    실측상 끄면 건당 23.9초 -> 6.2초, 출력 326토큰 -> 60토큰이고 정확도는 떨어지지 않았다
-    (오히려 소구포인트가 조금 나아졌다). 모델을 바꿀 때는 이 값이 유효한지 다시 재 볼 것.
-    temperature=0: 같은 광고를 다시 돌렸을 때 분류가 흔들리는 것을 줄인다.
-    max_tokens: 추론을 켠 상태의 실측 최대가 1,008토큰이라 여유를 둔다.
-    timeout: 무료 티어는 같은 호출이 3초~120초를 오가므로 넉넉히 잡는다.
-    """
-    nv = 설정["nvidia"]
-    옵션 = {
-        "max_tokens": nv.get("max_tokens", 2000),
-        "temperature": 0,
-        "timeout": nv.get("timeout", 150),
-        "response_format": {"type": "json_object"},
-    }
-    if nv.get("thinking", False) is False:
-        옵션["extra_body"] = {"chat_template_kwargs": {"thinking": False}}
-    return 옵션
+    client = 클라이언트(설정)
+    print(f"분류 모델: {client.모델_고르기(설정['ai']['models'])}")
+    return client
 
 
 def _JSON_파싱(텍스트):
-    """response_format을 무시하고 ```json 펜스나 앞뒤 설명을 붙여 보내는 모델까지 처리한다."""
+    """```json 펜스나 앞뒤 설명이 붙어 와도 JSON만 꺼낸다."""
     텍스트 = (텍스트 or "").strip()
     try:
         return json.loads(텍스트)
@@ -342,96 +382,71 @@ def _JSON_파싱(텍스트):
         return json.loads(텍스트[시작:끝 + 1])
 
 
-def _이미지_문구_읽기(client, 이미지_경로, 설정):
-    """vision_model로 이미지 속 문구만 뽑아낸다. 비어 있으면 None.
+def _이미지_바이트(이미지):
+    """로컬 경로나 영구 주소(Blob·드라이브)에서 이미지를 읽는다. 실패하면 None.
 
-    분류를 잘하는 모델과 이미지를 빠르게 읽는 모델이 서로 다르기 때문에 단계를 나눈다.
-    (분류 모델에 이미지를 직접 물리면 건당 90초를 넘어갔고, 전용 비전 모델에 OCR만
-    시키면 3초대에 끝난다.)
+    종료된 광고는 로컬 파일이 없어서 예전엔 텍스트만으로 분류했다. 보관 주소가 있으면 받아 쓴다.
     """
-    import base64
+    if not 이미지:
+        return None
+    if os.path.exists(이미지):
+        with open(이미지, "rb") as f:
+            return f.read()
+    if 이미지.startswith("http") and "fbcdn.net" not in 이미지:
+        try:
+            with urllib.request.urlopen(이미지, timeout=15) as r:
+                return r.read()
+        except Exception:
+            return None
+    return None
 
-    nv = 설정["nvidia"]
-    확장자 = "." + 이미지_경로.rsplit(".", 1)[-1].lower()
-    mime_type = 확장자별_MIME.get(확장자, "image/jpeg")
-    with open(이미지_경로, "rb") as f:
-        이미지_base64 = base64.b64encode(f.read()).decode()
 
-    확장 = nv.get("extended_labels", False)
-    if 확장:
-        # 이미 이미지를 보고 있으니 시각 축도 같이 받는다. 호출을 늘리지 않기 위해서다.
-        지시 = (
-            "이미지를 보고 아래 JSON만 출력하라. 설명 금지.\n"
-            '{"문구": "이미지에 적힌 문구를 그대로", '
-            + ", ".join(f'"{이름}": ""' for 이름 in 시각축)
-            + "}\n\n각 항목은 아래 중 하나만 고른다:\n"
-            + _축_안내(시각축)
+def _MIME(데이터):
+    if 데이터[:8] == b"\x89PNG\r\n\x1a\n":
+        return "image/png"
+    if 데이터[:4] == b"RIFF" and 데이터[8:12] == b"WEBP":
+        return "image/webp"
+    return "image/jpeg"
+
+
+def 분류_요청문(광고주, 광고텍스트, 설정, 이미지있음):
+    프롬프트 = 분류_프롬프트_생성(광고주, 광고텍스트, 설정)
+    if 설정["ai"].get("extended_labels", True):
+        축 = {**메시지축, **(시각축 if 이미지있음 else {})}
+        프롬프트 += ("\n\n[추가 판단 항목] - 위 JSON에 아래 키도 함께 넣어라. 각 항목은 목록 중 하나만.\n"
+                  + _축_안내(축)
+                  + "\n\n[추출 항목] - 아래 키도 함께 넣어라.\n"
+                  + "\n".join(f"- {k}: {v}" for k, v in 추출항목.items()))
+    if 이미지있음:
+        프롬프트 += "\n\n이미지 속 문구와 시각 요소도 함께 보고 판단하라."
+    return 프롬프트
+
+
+def 광고_분류(client, 이미지, 광고주, 광고텍스트, 설정):
+    """이미지(로컬 경로 또는 주소)와 텍스트를 한 번의 호출로 분류한다. 실패 시 예외."""
+    데이터 = _이미지_바이트(이미지)
+    내용 = [{"type": "text", "text": 분류_요청문(광고주, 광고텍스트, 설정, bool(데이터))}]
+    if 데이터:
+        내용.insert(0, {"type": "image_url", "image_url": {
+            "url": f"data:{_MIME(데이터)};base64,{base64.b64encode(데이터).decode()}"}})
+    ai = 설정["ai"]
+    # Gemini 3은 기본으로 추론 토큰을 쓰는데, 그게 출력 한도를 먹어 JSON이 잘린 적이 있다.
+    # 분류는 깊은 추론이 필요 없어 낮게 두고, 그래도 잘리면 한 번 더 시도한다.
+    for 시도 in range(2):
+        응답 = client.호출(
+            messages=[{"role": "user", "content": 내용}],
+            temperature=0,
+            max_tokens=ai.get("max_tokens", 4000),
+            timeout=ai.get("timeout", 90),
+            response_format={"type": "json_object"},
+            reasoning_effort=ai.get("reasoning_effort", "low"),
         )
-    else:
-        지시 = "이미지에 적힌 문구만 그대로 옮겨 적어라. 설명·해석·반복 금지."
-
-    응답 = client.chat.completions.create(
-        model=nv["vision_model"],
-        messages=[{
-            "role": "user",
-            "content": [
-                {"type": "image_url",
-                 "image_url": {"url": f"data:{mime_type};base64,{이미지_base64}"}},
-                {"type": "text", "text": 지시},
-            ],
-        }],
-        max_tokens=600 if 확장 else 300,
-        temperature=0,
-        timeout=nv.get("vision_timeout", 60),
-    )
-    본문 = (응답.choices[0].message.content or "").strip()
-    if not 본문:
-        return None, {}
-    if not 확장:
-        return 본문, {}
-
-    # 확장 모드에서 JSON이 깨져도 OCR 문구는 건지는 게 낫다.
-    try:
-        d = _JSON_파싱(본문)
-    except Exception:
-        return 본문, {}
-    시각값 = {이름: d.get(이름) for 이름 in 시각축 if d.get(이름) in 시각축[이름]}
-    return (d.get("문구") or "").strip() or None, 시각값
-
-
-def _이미지문구_합치기(광고텍스트, 이미지문구):
-    if not 이미지문구:
-        return 광고텍스트
-    return f"{광고텍스트}\n\n[이미지에서 읽은 문구]\n{이미지문구}"
+        try:
+            return _분류결과_검증(_JSON_파싱(응답.choices[0].message.content), 설정)
+        except json.JSONDecodeError:
+            if 시도:
+                raise
 
 
 def 광고_분류_텍스트전용(client, 광고주, 광고텍스트, 설정):
-    """이미지 없이 광고 텍스트만으로 분류한다. 실패 시 예외를 발생시킨다."""
-    프롬프트 = 분류_프롬프트_생성(광고주, 광고텍스트, 설정)
-    if 설정["nvidia"].get("extended_labels", False):
-        프롬프트 += (
-            "\n\n[추가 판단 항목] - 위 JSON에 아래 키도 함께 넣어라.\n"
-            + _축_안내(메시지축)
-        )
-
-    응답 = client.chat.completions.create(
-        model=설정["nvidia"]["model"],
-        messages=[{"role": "user", "content": 프롬프트}],
-        **_호출옵션(설정),
-    )
-    return _분류결과_검증(_JSON_파싱(응답.choices[0].message.content), 설정)
-
-
-def 광고_분류(client, 이미지_경로, 광고주, 광고텍스트, 설정):
-    """이미지에서 문구를 읽어 광고 텍스트에 합친 뒤 분류한다. 실패 시 예외를 발생시킨다."""
-    # 광고텍스트는 이미 수집돼 있으므로 이미지는 보강재다. OCR이 실패해도 그 건을
-    # 통째로 버리지 않고 텍스트만으로 분류한다 (무료 티어는 503/타임아웃이 잦다).
-    try:
-        이미지문구, 시각값 = _이미지_문구_읽기(client, 이미지_경로, 설정)
-    except Exception as e:
-        print(f"    (이미지 읽기 실패 - 텍스트만으로 분류: {type(e).__name__})")
-        이미지문구, 시각값 = None, {}
-
-    결과 = 광고_분류_텍스트전용(client, 광고주, _이미지문구_합치기(광고텍스트, 이미지문구), 설정)
-    결과.update(시각값)   # 시각 축은 이미지를 본 쪽 판단을 그대로 쓴다
-    return 결과
+    return 광고_분류(client, None, 광고주, 광고텍스트, 설정)

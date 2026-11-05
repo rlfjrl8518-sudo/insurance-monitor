@@ -42,19 +42,21 @@ def 설정_불러오기(설정_경로=기본_설정_경로):
     with open(설정_경로, "r", encoding="utf-8") as f:
         설정 = json.load(f)
 
-    # NVIDIA API 키: 환경 변수(NVIDIA_API_KEY)가 있으면 우선 사용
-    # OPENAI_API_KEY는 기존에 등록된 저장소 Secret을 그대로 쓸 수 있게 남겨둔 대체 이름이다.
-    nvidia_키 = os.environ.get("NVIDIA_API_KEY") or os.environ.get("OPENAI_API_KEY")
-    if nvidia_키:
-        설정.setdefault("nvidia", {})["api_key"] = _BOM_제거(nvidia_키)
-
-    # 모델은 환경 변수로도 바꿀 수 있게 둔다 (구글시트 'AI설정'보다 우선 적용된다)
-    for 환경변수, 설정키 in (("NVIDIA_MODEL", "model"), ("NVIDIA_VISION_MODEL", "vision_model"),
-                          ("NVIDIA_BASE_URL", "base_url")):
-        값 = os.environ.get(환경변수)
-        if 값:
-            설정.setdefault("nvidia", {})[설정키] = _BOM_제거(값)
-
+    # 분류(Vertex AI Gemini). 서비스계정 키는 시트용 키와 따로 받는다(프로젝트가 다르다).
+    ai = 설정.setdefault("ai", {})
+    프로젝트_루트 = os.path.dirname(os.path.abspath(설정_경로))
+    gcp_키 = os.environ.get("GCP_SERVICE_ACCOUNT_JSON")
+    if gcp_키:
+        경로 = os.path.join(프로젝트_루트, "gcp_service_account.json")
+        with open(경로, "w", encoding="utf-8") as f:
+            f.write(_BOM_제거(gcp_키))
+        ai["service_account_file"] = 경로
+    elif os.environ.get("GCP_SERVICE_ACCOUNT_FILE"):
+        ai["service_account_file"] = _BOM_제거(os.environ["GCP_SERVICE_ACCOUNT_FILE"])
+    if os.environ.get("GCP_PROJECT_ID"):
+        ai["project"] = _BOM_제거(os.environ["GCP_PROJECT_ID"])
+    if os.environ.get("AI_MODELS"):
+        ai["models"] = [m.strip() for m in os.environ["AI_MODELS"].split(",") if m.strip()]
 
     # 구글 시트/드라이브 ID: 환경 변수가 있으면 우선 사용
     시트_id = os.environ.get("GOOGLE_SHEETS_ID")

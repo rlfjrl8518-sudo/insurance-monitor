@@ -1,33 +1,68 @@
 {
   "own_company": "한화손보",
   "advertiser_categories": {
-    "손해보험": ["삼성화재", "DB손해보험", "KB손해보험", "현대해상", "메리츠화재"],
+    "손해보험": [
+      "삼성화재",
+      "DB손해보험",
+      "KB손해보험",
+      "현대해상",
+      "메리츠화재"
+    ],
     "생명보험": [],
     "GA": []
   },
   "advertiser_groups": {
-    "삼성화재": ["삼성화재", "삼성화재 다이렉트", "삼성화재 다이렉트 착"],
-    "한화손보": ["한화손보", "한화손보 TM"],
-    "현대해상": ["현대해상", "현대해상 다이렉트"],
-    "DB손해보험": ["DB 손해보험", "DB 손해보험 다이렉트", "DB손해보험다이렉트"]
+    "삼성화재": [
+      "삼성화재",
+      "삼성화재 다이렉트",
+      "삼성화재 다이렉트 착"
+    ],
+    "한화손보": [
+      "한화손보",
+      "한화손보 TM"
+    ],
+    "현대해상": [
+      "현대해상",
+      "현대해상 다이렉트"
+    ],
+    "DB손해보험": [
+      "DB 손해보험",
+      "DB 손해보험 다이렉트",
+      "DB손해보험다이렉트"
+    ]
   },
   "classification": {
-    "소재유형": ["비갱신", "특약", "브랜딩", "기타"],
-    "보종": ["여성보험", "태아보험", "간병인보험", "주택화재", "골프플랜", "보장분석", "어린이보험", "암보험", "운전자보험", "치아보험", "펫보험", "자동차보험", "여행보험", "종합보험", "기타"],
-    "소구포인트": ["시즌이슈", "정서유도", "가입유도", "경제적혜택", "대비유도", "상품신뢰"]
-  },
-  "nvidia": {
-    "api_key": "여기에_NVIDIA_API_KEY_입력",
-    "base_url": "https://integrate.api.nvidia.com/v1",
-    "model": "deepseek-ai/deepseek-v4-flash-0731",
-    "vision_model": "meta/llama-3.2-11b-vision-instruct",
-    "thinking": false,
-    "extended_labels": false,
-    "max_tokens": 2000,
-    "timeout": 150,
-    "vision_timeout": 60,
-    "max_retries": 4,
-    "동시_요청수": 6
+    "소재유형": [
+      "비갱신",
+      "특약",
+      "브랜딩",
+      "기타"
+    ],
+    "보종": [
+      "여성보험",
+      "태아보험",
+      "간병인보험",
+      "주택화재",
+      "골프플랜",
+      "보장분석",
+      "어린이보험",
+      "암보험",
+      "운전자보험",
+      "치아보험",
+      "펫보험",
+      "자동차보험",
+      "여행보험",
+      "종합보험",
+      "기타"
+    ],
+    "소구포인트": [
+      "시즌이슈",
+      "정서유도",
+      "가입유도",
+      "경제적혜택",
+      "대비유도",
+      "상품신뢰"
+    ]
   },
   "google_sheets": {
     "spreadsheet_id": "여기에_GOOGLE_SHEETS_ID_입력",
@@ -42,16 +77,34 @@
     "country": "KR",
     "active_status": "active",
     "ad_type": "all",
-    "scroll_count": 60,
-    "scroll_stable_count": 10,
-    "scroll_wait_seconds": 4,
     "page_load_wait_seconds": 5,
-    "headless": true,
-    "gql_shadow": true
+    "headless": true
   },
   "paths": {
     "csv_file": "data/ads.csv",
     "images_dir": "data/images",
-    "gql_shadow_log": "data/gql_shadow.jsonl"
+    "page_cache": "data/pages.json",
+    "health_file": "data/health.json"
+  },
+  "advertiser_overrides": {
+    "한화손보": "한화손보>한화손해보험",
+    "매트라이프생명": "메트라이프생명",
+    "삼성화재 다이렉트": ""
+  },
+  "ai": {
+    "provider": "vertex",
+    "project": "insurance-monitor-playd",
+    "location": "global",
+    "models": [
+      "google/gemini-3-flash-preview",
+      "google/gemini-3-flash",
+      "google/gemini-2.5-flash"
+    ],
+    "timeout": 90,
+    "max_retries": 4,
+    "max_tokens": 4000,
+    "동시_요청수": 8,
+    "extended_labels": true,
+    "reasoning_effort": "low"
   }
 }

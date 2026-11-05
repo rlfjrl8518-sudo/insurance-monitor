@@ -62,19 +62,46 @@ def 설정_덮어쓰기(설정, 저장된):
     if 규칙:
         설정["classification_rules"] = {**설정.get("classification_rules", {}), **규칙}
 
-    모델 = 저장된.get("nvidia_models") or {}
-    설정.setdefault("nvidia", {})
-    # API 키는 여기서 다루지 않는다. 키는 GitHub Secrets에만 두고, 웹 설정에는
-    # 모델 이름만 둔다. 환경 변수가 있으면 언제나 환경 변수가 이긴다.
-    if 모델.get("model") and not os.environ.get("NVIDIA_MODEL"):
-        설정["nvidia"]["model"] = 모델["model"]
-    if 모델.get("vision_model") and not os.environ.get("NVIDIA_VISION_MODEL"):
-        설정["nvidia"]["vision_model"] = 모델["vision_model"]
+    # 웹 설정에서 고른 모델은 후보 맨 앞에 둔다. 안 되면 나머지 후보로 넘어간다.
+    모델 = (저장된.get("ai_model") or {}).get("model")
+    if 모델 and not os.environ.get("AI_MODELS"):
+        후보 = 설정.setdefault("ai", {}).get("models", [])
+        설정["ai"]["models"] = [모델] + [m for m in 후보 if m != 모델]
 
     return 설정
 
 
+def 광고주_분류(설정, 웹설정=None, 시트그룹=None):
+    """광고주(저장명) -> (그룹명, 업권, 자사여부) 표를 만든다. 수집·적재가 같은 규칙을 쓰게 한 곳에 둔다.
+
+    그룹: 웹 설정이 있으면 그것만, 없으면 config 기본 묶음 위에 시트 '광고주그룹' 탭.
+    업권: advertiser_categories의 카테고리명 (항목의 '검색어>페이지명' 중 검색어 기준).
+    자사: own_company 그룹에 속한 페이지 전부. 예전엔 이름 완전일치라
+          '한화손보 TM'이 경쟁사로 집계됐다.
+    """
+    웹설정 = 웹설정 or {}
+    그룹묶음 = 웹설정.get("advertiser_groups") or {**설정.get("advertiser_groups", {}), **(시트그룹 or {})}
+    페이지_그룹 = {페이지: 그룹 for 그룹, 페이지들 in 그룹묶음.items() for 페이지 in 페이지들}
+    업권 = {}
+    for 카테고리, 항목들 in (설정.get("advertiser_categories") or {}).items():
+        for 항목 in 항목들:
+            업권[(항목 or "").partition(">")[0].strip()] = 카테고리
+    자사 = 설정.get("own_company", "")
+    자사_그룹 = 페이지_그룹.get(자사, 자사)
+
+    def 분류(광고주):
+        그룹 = 페이지_그룹.get(광고주)
+        return 그룹, 업권.get(광고주) or (업권.get(그룹) if 그룹 else None), (그룹 or 광고주) == 자사_그룹
+    return 분류
+
+
 if __name__ == "__main__":
+    분류 = 광고주_분류({"own_company": "한화손보",
+                     "advertiser_groups": {"한화손보": ["한화손보", "한화손보 TM"]},
+                     "advertiser_categories": {"손해보험": ["한화손보>한화손해보험", "한화손보 TM"]}})
+    assert 분류("한화손보 TM") == ("한화손보", "손해보험", True)
+    assert 분류("한화손보 캐롯") == (None, None, False)
+
     # 자체 점검: 빈 값이 기존 설정을 지우지 않는지, 있는 값은 제대로 덮는지.
     기준 = {
         "own_company": "한화손보",
@@ -95,11 +122,11 @@ if __name__ == "__main__":
     덮음 = 설정_덮어쓰기(json.loads(json.dumps(기준)), {
         "advertiser_categories": {"생명보험": ["AIA생명>AIA"]},
         "classification": {"보종": ["암보험", "치아보험"]},
-        "nvidia_models": {"model": "테스트모델"},
+        "ai_model": {"model": "테스트모델"},
     })
     assert 덮음["advertiser_categories"] == {"생명보험": ["AIA생명>AIA"]}, 덮음
     assert 덮음["classification"]["보종"] == ["암보험", "치아보험"], 덮음
     assert 덮음["classification"]["소재유형"] == ["가입유도"], 덮음
-    assert 덮음["nvidia"]["model"] == "테스트모델", 덮음
+    assert 덮음["ai"]["models"][0] == "테스트모델", 덮음
 
     print("자체 점검 통과")

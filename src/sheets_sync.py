@@ -347,20 +347,6 @@ def 설정_동적_적용(설정, 서비스계정_경로):
     if 시트설정["소구포인트"]:
         설정["classification"]["소구포인트"] = 시트설정["소구포인트"]
 
-    # 'AI설정' 시트에서 API 키/모델 적용.
-    # 환경 변수가 있으면 언제나 환경 변수가 이긴다. 예전에는 모델명에만 이 가드가 없어서
-    # 시트에 남아 있는 옛 모델명(gpt-5-mini 등)이 config.json 값을 덮어쓰고,
-    # 로컬은 멀쩡한데 배포에서만 404가 나는 상황이 생겼다.
-    ai설정 = AI설정_시트_읽기(gc, 설정)
-    설정.setdefault("nvidia", {})
-    환경변수_키_있음 = os.environ.get("NVIDIA_API_KEY") or os.environ.get("OPENAI_API_KEY")
-    if ai설정.get("nvidia_api_key") and not 환경변수_키_있음:
-        설정["nvidia"]["api_key"] = ai설정["nvidia_api_key"]
-    if ai설정.get("nvidia_model") and not os.environ.get("NVIDIA_MODEL"):
-        설정["nvidia"]["model"] = ai설정["nvidia_model"]
-    if ai설정.get("nvidia_vision_model") and not os.environ.get("NVIDIA_VISION_MODEL"):
-        설정["nvidia"]["vision_model"] = ai설정["nvidia_vision_model"]
-
     _웹_설정_덮어쓰기(설정)
     return 설정
 
@@ -464,6 +450,36 @@ def _드라이브_주소_채우기(행, 드라이브_url):
     return True
 
 
+def _시트값(행, 컬럼):
+    """옛 Apps Script 대시보드는 '운영중'으로 거른다. 시트에는 옛 표기로 넣어 그대로 돌게 한다."""
+    값 = 행.get(컬럼, "")
+    return "운영중" if 컬럼 == "상태" and 값 == "게재중" else 값
+
+
+def _시트_ID_옮기기(worksheet, 기존_행들, ad_id_열):
+    """ad_id가 라이브러리 ID로 바뀌었다(migrate_v2.py). 시트의 옛 ID도 한 번에 바꿔 둔다.
+
+    안 바꾸면 시트가 2천여 건을 전부 새 행으로 보고, 옛 행은 상태가 영영 갱신되지 않는다.
+    """
+    import gspread.utils
+
+    try:
+        with open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "id_map.json"),
+                  encoding="utf-8") as f:
+            지도 = json.load(f)
+    except (OSError, ValueError):
+        return 기존_행들
+    요청 = []
+    for 번호, 행 in enumerate(기존_행들[1:], start=2):
+        if ad_id_열 < len(행) and 행[ad_id_열] in 지도:
+            행[ad_id_열] = 지도[행[ad_id_열]]
+            요청.append({"range": gspread.utils.rowcol_to_a1(번호, ad_id_열 + 1), "values": [[행[ad_id_열]]]})
+    if 요청:
+        worksheet.batch_update(요청)
+        print(f"시트 ad_id {len(요청)}건을 라이브러리 ID로 옮겼습니다.")
+    return 기존_행들
+
+
 def 시트_동기화(설정, csv_경로, 이미지_폴더, 서비스계정_경로, 강제_분류_덮어쓰기=False):
     """CSV의 광고 데이터를 구글 시트에 동기화한다.
 
@@ -487,6 +503,7 @@ def 시트_동기화(설정, csv_경로, 이미지_폴더, 서비스계정_경�
     헤더 = 기존_행들[0] if 기존_행들 else 시트_컬럼
 
     ad_id_열 = 헤더.index("ad_id")
+    기존_행들 = _시트_ID_옮기기(worksheet, 기존_행들, ad_id_열)
     이미지url_열 = 헤더.index("이미지URL") if "이미지URL" in 헤더 else -1
     기존_위치 = {
         row[ad_id_열]: 행번호
@@ -537,7 +554,7 @@ def 시트_동기화(설정, csv_경로, 이미지_폴더, 서비스계정_경�
                     continue
                 열번호 = 헤더.index(컬럼명)
                 셀주소 = gspread.utils.rowcol_to_a1(행번호, 열번호 + 1)
-                갱신_요청.append({"range": 셀주소, "values": [[행.get(컬럼명, "")]]})
+                갱신_요청.append({"range": 셀주소, "values": [[_시트값(행, 컬럼명)]]})
 
             for 컬럼명 in 분류_컬럼:
                 if 컬럼명 not in 헤더:
@@ -569,7 +586,7 @@ def 시트_동기화(설정, csv_경로, 이미지_폴더, 서비스계정_경�
                 보강_개수 += 1
 
             새_행_목록.append([
-                이미지URL if 컬럼 == "이미지URL" else 행.get(컬럼, "")
+                이미지URL if 컬럼 == "이미지URL" else _시트값(행, 컬럼)
                 for 컬럼 in 헤더
             ])
             신규_개수 += 1
