@@ -100,7 +100,7 @@ export async function 경쟁비교({ 업권, 범위 }: { 업권: string; 범위:
     영상: 중앙(경쟁운영.flatMap((x) => (x.영상 === null ? [] : [x.영상]))),
   };
   const 링크 = (k: string, v: string) => {
-    const q = new URLSearchParams({ 탭: "경쟁", 업권, 범위, [k]: v });
+    const q = new URLSearchParams({ tab: "compare", 업권, 범위, [k]: v });
     return `/analysis?${q}`;
   };
   const 칩 = (선택: boolean) =>

@@ -52,3 +52,30 @@ def 받기(버킷, 이름):
         return None
     r.raise_for_status()
     return r.content
+
+
+def 잠그기(버킷, 이름, 내용, 만료_초=7200):
+    """이름이 없을 때만 만든다(동시 실행 막기). 잡았으면 True.
+
+    이미 있어도 만료_초보다 오래됐으면 이전 실행이 죽고 남긴 것으로 보고 넘겨받는다.
+    """
+    from datetime import datetime, timezone
+
+    주소 = f"https://storage.googleapis.com/upload/storage/v1/b/{버킷}/o"
+    r = 세션().post(주소, params={"uploadType": "media", "name": 이름, "ifGenerationMatch": "0"},
+                  data=내용.encode(), headers={"Content-Type": "text/plain"}, timeout=30)
+    if r.status_code == 200:
+        return True
+    if r.status_code != 412:
+        r.raise_for_status()
+    정보 = 세션().get(f"https://storage.googleapis.com/storage/v1/b/{버킷}/o/{quote(이름, safe='')}", timeout=30).json()
+    만든때 = datetime.fromisoformat(정보["updated"].replace("Z", "+00:00"))
+    if (datetime.now(timezone.utc) - 만든때).total_seconds() < 만료_초:
+        return False
+    r = 세션().post(주소, params={"uploadType": "media", "name": 이름, "ifGenerationMatch": 정보["generation"]},
+                  data=내용.encode(), headers={"Content-Type": "text/plain"}, timeout=30)
+    return r.status_code == 200
+
+
+def 지우기(버킷, 이름):
+    세션().delete(f"https://storage.googleapis.com/storage/v1/b/{버킷}/o/{quote(이름, safe='')}", timeout=30)

@@ -87,7 +87,7 @@ export default async function 브랜드상세({ params }: { params: Promise<{ gr
         <Link href={`/?그룹=${encodeURIComponent(그룹)}&상태=전체`} className="ml-auto rounded-full border border-[#e4e6eb] px-3 py-1 text-[12px] text-[#5c626d] hover:border-[#334fff] hover:text-[#334fff]">
           전체 소재 탐색
         </Link>
-        <Link href={`/analysis?탭=교차&행=광고주&열=보종&광고주=${encodeURIComponent(그룹)}`} className="rounded-full border border-[#e4e6eb] px-3 py-1 text-[12px] text-[#5c626d] hover:border-[#334fff] hover:text-[#334fff]">
+        <Link href={`/analysis?tab=crosstab&행=광고주&열=보종&광고주=${encodeURIComponent(그룹)}`} className="rounded-full border border-[#e4e6eb] px-3 py-1 text-[12px] text-[#5c626d] hover:border-[#334fff] hover:text-[#334fff]">
           분석에서 보기
         </Link>
       </div>

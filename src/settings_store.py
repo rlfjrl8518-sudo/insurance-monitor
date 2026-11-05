@@ -83,9 +83,13 @@ def 광고주_분류(설정, 웹설정=None, 시트그룹=None):
     그룹묶음 = 웹설정.get("advertiser_groups") or {**설정.get("advertiser_groups", {}), **(시트그룹 or {})}
     페이지_그룹 = {페이지: 그룹 for 그룹, 페이지들 in 그룹묶음.items() for 페이지 in 페이지들}
     업권 = {}
+    보정 = 설정.get("advertiser_overrides") or {}
     for 카테고리, 항목들 in (설정.get("advertiser_categories") or {}).items():
         for 항목 in 항목들:
-            업권[(항목 or "").partition(">")[0].strip()] = 카테고리
+            # 등록 오타를 보정한 이름(예: 매트라이프생명 → 메트라이프생명)으로 저장되므로 그 이름에도 업권을 단다.
+            for 이름 in (항목, 보정.get(항목) or ""):
+                if 이름:
+                    업권[이름.partition(">")[0].strip()] = 카테고리
     자사 = 설정.get("own_company", "")
     자사_그룹 = 페이지_그룹.get(자사, 자사)
 
@@ -101,6 +105,9 @@ if __name__ == "__main__":
                      "advertiser_categories": {"손해보험": ["한화손보>한화손해보험", "한화손보 TM"]}})
     assert 분류("한화손보 TM") == ("한화손보", "손해보험", True)
     assert 분류("한화손보 캐롯") == (None, None, False)
+    보정됨 = 광고주_분류({"advertiser_overrides": {"매트라이프생명": "메트라이프생명"},
+                       "advertiser_categories": {"생명보험": ["매트라이프생명"]}})
+    assert 보정됨("메트라이프생명")[1] == "생명보험"
 
     # 자체 점검: 빈 값이 기존 설정을 지우지 않는지, 있는 값은 제대로 덮는지.
     기준 = {

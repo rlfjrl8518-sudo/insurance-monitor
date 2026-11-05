@@ -14,7 +14,7 @@ import os
 import subprocess
 import sys
 
-from src.gcp import 받기, 올리기
+from src.gcp import 받기, 올리기, 잠그기, 지우기
 
 데이터_버킷 = os.environ.get("DATA_BUCKET", "insurance-monitor-playd-data")
 데이터_파일 = ["data/ads.csv", "data/pages.json", "data/health.json", "data/id_map.json"]
@@ -44,7 +44,21 @@ def 데이터_올리기():
     print("[데이터] 올림")
 
 
+잠금_이름 = "data/.running"
+
+
 def 실행(고른것):
+    # 두 실행이 겹치면 각자 받은 CSV를 고쳐 올리면서 한쪽 결과를 덮어쓴다(실제로 한 번에 3개가 겹친 적이 있다).
+    if not 잠그기(데이터_버킷, 잠금_이름, os.environ.get("CLOUD_RUN_EXECUTION", "local")):
+        print("다른 실행이 진행 중이라 이번 실행은 건너뜁니다.")
+        return 0
+    try:
+        return _실행(고른것)
+    finally:
+        지우기(데이터_버킷, 잠금_이름)
+
+
+def _실행(고른것):
     데이터_받기()
     실패 = []
     for 이름 in 고른것:
