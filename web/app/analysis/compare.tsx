@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { sql, 형식이름 } from "@/lib/db";
-import { 구역, 근거주소, 조사, 카드목록, 톤, type 카드 } from "./cards";
+import { 구역, 근거주소, 소재질의, 예시고르기, 조사, 카드목록, 톤, type 카드, type 소재 } from "./cards";
 
 /** 경쟁 비교 = 자사 성적표. 비교 틀이 고정이고, 결과를 '할 일(공백·열세)'과 '강점(자사 집중)' 카드로 낸다.
  *  축별 숫자 전체는 각 카드의 근거 링크로 교차분석에서 본다. */
@@ -79,9 +79,10 @@ export async function 경쟁비교({ 업권, 범위 }: { 업권: string; 범위:
 
   let 운영들: 운영[] = [];
   let 분포들: 분포[][] = [];
+  let 소재들: 소재[] = [];
   let 오류: string | null = null;
   try {
-    [운영들, ...분포들] = (await Promise.all([
+    [운영들, 소재들, ...분포들] = (await Promise.all([
       sql`select coalesce(advertiser_group, advertiser) g, bool_or(segment = '자사') 자사,
                  count(*) filter (where status <> '종료')::int 게재중,
                  count(*) filter (where first_seen_on >= current_date - 30)::int 신규30,
@@ -89,13 +90,14 @@ export async function 경쟁비교({ 업권, 범위 }: { 업권: string; 범위:
                  avg(variant_count)::float 변형,
                  (count(*) filter (where display_format = 'VIDEO'))::float / nullif(count(*), 0) 영상
           from ads where ${대상} group by 1 order by 게재중 desc, 신규30 desc`,
+      소재질의(대상),
       ...축들.map(
         ([, 식]) => sql`select coalesce(advertiser_group, advertiser) g, bool_or(segment = '자사') 자사,
                               ${sql.unsafe(식)} v, count(*)::int n
                        from ads where ${대상} and coalesce(${sql.unsafe(식)}, '') <> ''
                        group by 1, 3`,
       ),
-    ])) as unknown as [운영[], ...분포[][]];
+    ])) as unknown as [운영[], 소재[], ...분포[][]];
   } catch (e) {
     오류 = e instanceof Error ? e.message : String(e);
   }
@@ -142,6 +144,7 @@ export async function 경쟁비교({ 업권, 범위 }: { 업권: string; 범위:
           보조: `자사 ${퍼센트(x.우리)} · 경쟁 ${비교.경쟁수}곳 중 ${x.쓰는곳}곳 사용${최다}`,
           링크: 근거,
           톤: "나쁨",
+          예시: 예시고르기(소재들, (s) => !s.자사 && s[축] === x.v),
         });
       else if (x.차이 >= 강조_차이)
         강점.push({
@@ -154,6 +157,7 @@ export async function 경쟁비교({ 업권, 범위 }: { 업권: string; 범위:
           보조: `경쟁 평균 ${퍼센트(x.평균)} · ${비교.경쟁수}곳 중 ${x.쓰는곳}곳 사용${최다}`,
           링크: 근거,
           톤: "자사",
+          예시: 예시고르기(소재들, (s) => s.자사 && s[축] === x.v),
         });
     }
   });

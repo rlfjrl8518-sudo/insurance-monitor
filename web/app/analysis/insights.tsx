@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { sql } from "@/lib/db";
-import { 구역, 근거주소, 조사, 카드목록, 한눈에, type 카드 } from "./cards";
+import { 구역, 근거주소, 소재질의, 예시고르기, 조사, 카드목록, 한눈에, type 카드, type 소재 } from "./cards";
 
 /** 인사이트 = 전체 기간에 반복되는 '시장의 공식' 중 기준을 넘은 것만 문장 카드로.
  *  숫자 표는 교차분석에만 두고, 카드의 '근거 보기'가 같은 축으로 교차분석을 연다.
@@ -69,6 +69,7 @@ export async function 인사이트({ 업권 }: { 업권: string }) {
   let 장수유형: 생존[] = [];
   let 광고주장수: { g: string; 전체: number; 장수: number }[] = [];
   let 장수광고주보종: 교차[] = [];
+  let 소재들: 소재[] = [];
   let 오류: string | null = null;
   const 범위 = sql`(${업권} = '' or category = ${업권})`;
   const 기준일 = sql.unsafe(String(장수기준));
@@ -81,7 +82,7 @@ export async function 인사이트({ 업권 }: { 업권: string }) {
         group by 1` as unknown as Promise<생존[]>;
 
   try {
-    [장수명, 보종소구, 광고주보종, 장수소구, 장수보종, 장수유형, 광고주장수, 장수광고주보종] = (await Promise.all([
+    [장수명, 보종소구, 광고주보종, 장수소구, 장수보종, 장수유형, 광고주장수, 장수광고주보종, 소재들] = (await Promise.all([
       sql`select coalesce(advertiser_group, advertiser) 그룹, ad_id, running_days, image_url
           from ads where ${범위} and status <> '종료'
           order by running_days desc limit 12`,
@@ -98,7 +99,8 @@ export async function 인사이트({ 업권 }: { 업권: string }) {
           group by 1 having count(*) >= 30`,
       sql`select coalesce(advertiser_group, advertiser) r, insurance_type c, count(*)::int n from ads
           where ${범위} and running_days >= ${기준일} and insurance_type <> '' group by 1, 2`,
-    ])) as unknown as [typeof 장수명, 교차[], 교차[], 생존[], 생존[], 생존[], typeof 광고주장수, 교차[]];
+      소재질의(범위),
+    ])) as unknown as [typeof 장수명, 교차[], 교차[], 생존[], 생존[], 생존[], typeof 광고주장수, 교차[], 소재[]];
   } catch (e) {
     오류 = e instanceof Error ? e.message : String(e);
   }
@@ -116,6 +118,7 @@ export async function 인사이트({ 업권 }: { 업권: string }) {
       보조: `시장 평균 ${퍼(f!.시장)} · ${r} 소재 ${합}건`,
       링크: 근거주소({ 업권, 행: "보종", 열: "소구포인트", 상태: "전체" }),
       톤: "발견",
+      예시: 예시고르기(소재들, (x) => x.보종 === r && x.소구포인트 === f!.c),
     }));
 
   // 2. 보험사별 무기: 시장보다 유독 많이 미는 보종. 장수 소재 주력이 다르면 그것도 붙인다.
@@ -140,6 +143,7 @@ export async function 인사이트({ 업권 }: { 업권: string }) {
           (장수비율.has(r) ? ` · ${장수기준}일+ ${퍼(장수비율.get(r)!)}` : ""),
         링크: 근거주소({ 업권, 행: "광고주", 열: "보종", 상태: "전체" }),
         톤: "발견" as const,
+        예시: 예시고르기(소재들, (x) => x.g === r && x.보종 === f!.c),
       };
     });
 
@@ -163,6 +167,10 @@ export async function 인사이트({ 업권 }: { 업권: string }) {
     링크: `/?${encodeURIComponent(x.축)}=${encodeURIComponent(x.v)}&상태=전체`,
     링크이름: "소재 보기",
     톤: 좋음 ? "좋음" : "나쁨",
+    // 오래 가는 쪽은 60일 넘긴 것 중 오래 돈 순, 빨리 지는 쪽은 종료된 것 중 짧게 끝난 순
+    예시: 좋음
+      ? 예시고르기(소재들, (s) => s[x.축 as "보종"] === x.v && s.일수 >= 장수기준)
+      : 예시고르기([...소재들].reverse(), (s) => s[x.축 as "보종"] === x.v && s.종료 && s.일수 > 0),
   });
   const 오래카드 = 생존들.filter((x) => x.배수 >= 오래배수 && x.v !== "기타").sort((a, b) => b.배수 - a.배수).map((x) => 생존카드(x, true));
   const 빨리카드 = 생존들.filter((x) => x.배수 <= 빨리배수 && x.v !== "기타").sort((a, b) => a.배수 - b.배수).map((x) => 생존카드(x, false));

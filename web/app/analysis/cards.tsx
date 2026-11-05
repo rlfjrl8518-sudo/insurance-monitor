@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { sql } from "@/lib/db";
 
 /** 인사이트·경쟁 비교가 같이 쓰는 카드. 표는 교차분석에만 두고, 두 화면은 '발견'만 카드로 보여준다.
  *  카드마다 근거 링크가 교차분석(같은 축·필터)으로 이어진다. */
@@ -21,7 +22,42 @@ export type 카드 = {
   링크: string;
   링크이름?: string;
   톤: 톤이름;
+  예시?: 소재[];
 };
+
+/** 카드에 붙일 예시 소재. 열 이름을 축 이름(보종·소구포인트…)으로 맞춰 x[축]으로 고른다. */
+export type 소재 = {
+  ad_id: string; image_url: string; g: string; 자사: boolean; 일수: number; 종료: boolean;
+  보종: string | null; 소구포인트: string | null; 소재유형: string | null; 형식: string | null;
+  퍼널단계: string | null; 오퍼: string | null;
+};
+
+export function 소재질의(조건: ReturnType<typeof sql>) {
+  return sql`select ad_id, image_url, coalesce(advertiser_group, advertiser) g, coalesce(segment = '자사', false) 자사,
+                    coalesce(running_days, 0)::int 일수, status = '종료' 종료,
+                    insurance_type 보종, appeal_point 소구포인트, creative_type 소재유형, display_format 형식,
+                    labels->>'퍼널단계' 퍼널단계, labels->>'오퍼' 오퍼
+             -- ponytail: 메타 CDN 주소는 만료돼 깨진다. GCS로 옮겨지지 않은 소재는 예시에서 뺀다(수집에서 옮기면 풀 것)
+             from ads where coalesce(image_url, '') <> '' and image_url not like '%fbcdn.net%' and ${조건}
+             order by running_days desc nulls last` as unknown as Promise<소재[]>;
+}
+
+/** 조건에 맞는 소재 n개. 한 광고주로 몰리지 않게 광고주마다 하나씩 먼저 고르고 남는 자리를 채운다.
+ *  목록 순서(오래 돈 순 등)를 그대로 따른다. */
+export function 예시고르기(소재들: 소재[], 맞나: (x: 소재) => boolean, n = 4) {
+  const 맞는것 = 소재들.filter(맞나);
+  const 고른 = new Set<소재>();
+  const 본광고주 = new Set<string>();
+  for (const x of 맞는것) {
+    if (고른.size >= n) break;
+    if (!본광고주.has(x.g)) { 고른.add(x); 본광고주.add(x.g); }
+  }
+  for (const x of 맞는것) {
+    if (고른.size >= n) break;
+    고른.add(x);
+  }
+  return [...고른];
+}
 
 /** 받침에 맞는 조사. 받침 있으면 앞 것(은·을·이), 없으면 뒤 것. 한글이 아니면 뒤 것. */
 export function 조사(단어: string, 쌍: "은는" | "을를" | "이가") {
@@ -93,23 +129,43 @@ export function 카드목록({ 카드들, 최대 = 6, 없을때, 더보기 }: { 
 export function 발견카드(c: 카드) {
   const t = 톤[c.톤];
   return (
-    <div className="flex gap-4 rounded-xl border border-[#e9eaee] bg-white p-4 shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
-      <div className="flex w-[64px] shrink-0 flex-col items-center justify-center rounded-lg py-2" style={{ background: t.바탕 }}>
-        <span className="text-[20px] font-bold leading-none tabular-nums" style={{ color: t.글 }}>
-          {c.수치}
-        </span>
-        <span className="mt-1 text-[10px] font-medium" style={{ color: t.글 }}>
-          {c.수치설명}
-        </span>
+    <div className="flex flex-col rounded-xl border border-[#e9eaee] bg-white p-4 shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
+      <div className="flex gap-4">
+        <div className="flex w-[64px] shrink-0 flex-col items-center justify-center rounded-lg py-2" style={{ background: t.바탕 }}>
+          <span className="text-[20px] font-bold leading-none tabular-nums" style={{ color: t.글 }}>
+            {c.수치}
+          </span>
+          <span className="mt-1 text-[10px] font-medium" style={{ color: t.글 }}>
+            {c.수치설명}
+          </span>
+        </div>
+        <div className="min-w-0 flex-1">
+          <span className="mb-1 inline-block rounded bg-[#f2f3f5] px-1.5 py-0.5 text-[10px] font-medium text-[#5c626d]">{c.태그}</span>
+          <div className="text-[13px] font-semibold leading-snug">{c.제목}</div>
+          <div className="mt-1 text-[11px] text-[#8a8f98]">{c.보조}</div>
+        </div>
       </div>
-      <div className="flex min-w-0 flex-1 flex-col">
-        <span className="mb-1 w-fit rounded bg-[#f2f3f5] px-1.5 py-0.5 text-[10px] font-medium text-[#5c626d]">{c.태그}</span>
-        <div className="text-[13px] font-semibold leading-snug">{c.제목}</div>
-        <div className="mt-1 text-[11px] text-[#8a8f98]">{c.보조}</div>
-        <Link href={c.링크} className="mt-auto pt-2 text-[11px] font-medium text-[#334fff] hover:underline">
-          {c.링크이름 ?? "근거 보기"} →
-        </Link>
-      </div>
+      {!!c.예시?.length && (
+        <div className="mt-3 grid grid-cols-4 gap-1.5">
+          {c.예시.map((e) => (
+            <Link
+              key={e.ad_id}
+              href={`/?소재=${encodeURIComponent(e.ad_id)}&상태=전체`}
+              title={`${e.g} · 운영 ${e.일수}일`}
+              className="relative aspect-square overflow-hidden rounded-md bg-[#f2f3f5] ring-[#334fff] transition hover:ring-2"
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={e.image_url} alt="" loading="lazy" className="h-full w-full object-cover" />
+              <span className="absolute inset-x-0 bottom-0 truncate bg-black/55 px-1 py-0.5 text-[9px] text-white">
+                {e.g} · {e.일수}일
+              </span>
+            </Link>
+          ))}
+        </div>
+      )}
+      <Link href={c.링크} className="mt-auto pt-2.5 text-[11px] font-medium text-[#334fff] hover:underline">
+        {c.링크이름 ?? "근거 보기"} →
+      </Link>
     </div>
   );
 }
