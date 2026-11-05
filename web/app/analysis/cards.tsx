@@ -67,6 +67,13 @@ export function 조사(단어: string, 쌍: "은는" | "을를" | "이가") {
 }
 console.assert(조사("AIA생명", "은는") === "AIA생명은" && 조사("한화손보", "은는") === "한화손보는");
 
+/** 근거 화면 주소. 카드 하나의 주장(축·값·집단·비교)을 그대로 넘긴다. app/analysis/evidence 참고. */
+export function 근거링크(p: { 축: string; 값: string; 집단?: string; 비교?: string; 종류?: string; 범위?: string; 업권?: string; 순서?: string; 출처: string }) {
+  const q = new URLSearchParams();
+  for (const [k, v] of Object.entries(p)) if (v) q.set(k, v);
+  return `/analysis/evidence?${q}`;
+}
+
 /** 교차분석으로 가는 주소. 업권·행·열·상태 등은 교차분석 화면이 그대로 받는다. */
 export function 근거주소(조건: Record<string, string | undefined>) {
   const q = new URLSearchParams({ tab: "crosstab" });
