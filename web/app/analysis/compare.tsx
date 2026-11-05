@@ -1,8 +1,9 @@
 import Link from "next/link";
 import { sql, 형식이름 } from "@/lib/db";
+import { 구역, 근거주소, 조사, 카드목록, 톤, type 카드 } from "./cards";
 
-/** 경쟁 비교 = 자사 대비 경쟁사. 축을 고르는 자유 분석(교차분석)과 달리 비교 틀이 고정돼 있고,
- *  '경쟁사는 하는데 우리는 안 하는 것(공백)'과 '우리만 유난히 많이 하는 것'을 바로 짚는다. */
+/** 경쟁 비교 = 자사 성적표. 비교 틀이 고정이고, 결과를 '할 일(공백·열세)'과 '강점(자사 집중)' 카드로 낸다.
+ *  축별 숫자 전체는 각 카드의 근거 링크로 교차분석에서 본다. */
 
 const 축들 = [
   ["소재유형", "creative_type"],
@@ -18,7 +19,7 @@ type 운영 = {
 };
 type 분포 = { g: string; 자사: boolean; v: string; n: number };
 
-/** 공백: 자사 비중이 이보다 낮은데 경쟁사 평균은 경쟁_공백기준 이상. 차이 강조 기준(%p). */
+/** 공백: 자사 비중이 이보다 낮은데 경쟁사 평균은 경쟁_공백기준 이상, 2곳 이상이 씀. 열세·집중: 차이 %p 기준. */
 const 자사_공백기준 = 0.03;
 const 경쟁_공백기준 = 0.1;
 const 강조_차이 = 0.15;
@@ -43,18 +44,27 @@ function 축비교(행들: 분포[], 값이름: (v: string) => string) {
   return {
     자사합,
     경쟁수: 경쟁사들.length,
-    줄: 값목록
-      .map((v) => {
-        const 우리 = 자사합 ? (자사.get(v) ?? 0) / 자사합 : 0;
-        const 비중들 = 경쟁사들.map(([g, m]) => ({ g, p: (m.get(v) ?? 0) / 합(m) }));
-        const 평균 = 비중들.length ? 비중들.reduce((s, x) => s + x.p, 0) / 비중들.length : 0;
-        const 최다 = [...비중들].sort((a, b) => b.p - a.p)[0];
-        const 쓰는곳 = 비중들.filter((x) => x.p > 0).length;
-        return { v, 이름: 값이름(v), 우리, 평균, 차이: 우리 - 평균, 최다, 쓰는곳 };
-      })
-      .filter((x) => x.우리 > 0 || x.평균 >= 0.02)
-      .sort((a, b) => b.평균 + b.우리 - (a.평균 + a.우리)),
+    줄: 값목록.map((v) => {
+      const 우리 = 자사합 ? (자사.get(v) ?? 0) / 자사합 : 0;
+      const 비중들 = 경쟁사들.map(([g, m]) => ({ g, p: (m.get(v) ?? 0) / 합(m) }));
+      const 평균 = 비중들.length ? 비중들.reduce((s, x) => s + x.p, 0) / 비중들.length : 0;
+      const 최다 = [...비중들].sort((a, b) => b.p - a.p)[0];
+      const 쓰는곳 = 비중들.filter((x) => x.p > 0).length;
+      return { v, 이름: 값이름(v), 우리, 평균, 차이: 우리 - 평균, 최다, 쓰는곳 };
+    }),
   };
+}
+
+function 타일({ 값, 이름, 설명, 색 }: { 값: string; 이름: string; 설명: string; 색?: string }) {
+  return (
+    <div className="rounded-xl border border-[#e9eaee] bg-white px-4 py-3">
+      <div className="text-[11px] font-medium text-[#8a8f98]">{이름}</div>
+      <div className="mt-1 text-[24px] font-bold leading-none tabular-nums" style={{ color: 색 ?? "#191f28" }}>
+        {값}
+      </div>
+      <div className="mt-1.5 text-[11px] text-[#a7adb8]">{설명}</div>
+    </div>
+  );
 }
 
 export async function 경쟁비교({ 업권, 범위 }: { 업권: string; 범위: string }) {
@@ -62,6 +72,10 @@ export async function 경쟁비교({ 업권, 범위 }: { 업권: string; 범위:
   const 기간 = 최근 ? sql`coalesce(ended_on, current_date) >= current_date - 90` : sql`status <> '종료'`;
   // 자사는 업권과 상관없이 늘 넣는다(생명보험 업권을 골라도 자사와 비교할 수 있게).
   const 대상 = sql`(${업권} = '' or category = ${업권} or segment = '자사') and ${기간}`;
+  // 교차분석에서 같은 대상을 보도록 넘기는 조건
+  const 교차조건 = 최근
+    ? { 상태: "전체", 시작: new Date(Date.now() - 90 * 864e5).toISOString().slice(0, 10) }
+    : { 상태: "게재중" };
 
   let 운영들: 운영[] = [];
   let 분포들: 분포[][] = [];
@@ -87,7 +101,9 @@ export async function 경쟁비교({ 업권, 범위 }: { 업권: string; 범위:
   }
 
   const 자사행 = 운영들.find((x) => x.자사);
-  const 총게재 = Math.max(1, 운영들.reduce((s, x) => s + x.게재중, 0));
+  const 게재순 = 운영들.filter((x) => x.게재중 > 0);
+  const 총게재 = Math.max(1, 게재순.reduce((s, x) => s + x.게재중, 0));
+  const 자사순위 = 자사행 ? 게재순.findIndex((x) => x.자사) + 1 : 0;
   const 경쟁운영 = 운영들.filter((x) => !x.자사 && x.게재중 + x.신규30 >= 5);
   const 중앙 = (xs: number[]) => {
     const s = [...xs].sort((a, b) => a - b);
@@ -99,19 +115,64 @@ export async function 경쟁비교({ 업권, 범위 }: { 업권: string; 범위:
     변형: 중앙(경쟁운영.flatMap((x) => (x.변형 === null ? [] : [x.변형]))),
     영상: 중앙(경쟁운영.flatMap((x) => (x.영상 === null ? [] : [x.영상]))),
   };
-  const 링크 = (k: string, v: string) => {
-    const q = new URLSearchParams({ tab: "compare", 업권, 범위, [k]: v });
-    return `/analysis?${q}`;
-  };
+
+  // 축마다 비교해서 할 일(공백·열세)과 강점(자사 집중) 카드로 모은다.
+  const 할일: (카드 & { 무게: number })[] = [];
+  const 강점: (카드 & { 무게: number })[] = [];
+  축들.forEach(([축], i) => {
+    const 비교 = 축비교(분포들[i] ?? [], (v) => (축 === "형식" ? (형식이름[v] ?? v) : v));
+    if (!비교.자사합) return;
+    비교.줄 = 비교.줄.filter((x) => x.v !== "기타");
+    const 근거 = 근거주소({ 업권, 행: "광고주", 열: 축, ...교차조건 });
+    for (const x of 비교.줄) {
+      const 최다 = x.최다 && x.최다.p > 0 ? ` · 가장 많이: ${x.최다.g} ${퍼센트(x.최다.p)}` : "";
+      const 공백 = x.우리 < 자사_공백기준 && x.평균 >= 경쟁_공백기준 && x.쓰는곳 >= 2;
+      if (공백 || x.차이 <= -강조_차이)
+        할일.push({
+          키: `${축}-${x.v}`,
+          무게: -x.차이,
+          수치: 퍼센트(x.평균),
+          수치설명: "경쟁 평균",
+          태그: `${축} · ${공백 ? "공백" : "열세"}`,
+          제목: 공백 ? (
+            <>경쟁사는 &lsquo;{x.이름}&rsquo;{조사(x.이름, "을를").slice(x.이름.length)} 쓰는데 우리는 {퍼센트(x.우리)}</>
+          ) : (
+            <>&lsquo;{x.이름}&rsquo; 비중이 경쟁사보다 {Math.round(-x.차이 * 100)}%p 낮음</>
+          ),
+          보조: `자사 ${퍼센트(x.우리)} · 경쟁 ${비교.경쟁수}곳 중 ${x.쓰는곳}곳 사용${최다}`,
+          링크: 근거,
+          톤: "나쁨",
+        });
+      else if (x.차이 >= 강조_차이)
+        강점.push({
+          키: `${축}-${x.v}`,
+          무게: x.차이,
+          수치: `+${Math.round(x.차이 * 100)}`,
+          수치설명: "%p",
+          태그: `${축} · 자사 집중`,
+          제목: <>우리는 &lsquo;{x.이름}&rsquo; 비중 {퍼센트(x.우리)}</>,
+          보조: `경쟁 평균 ${퍼센트(x.평균)} · ${비교.경쟁수}곳 중 ${x.쓰는곳}곳 사용${최다}`,
+          링크: 근거,
+          톤: "자사",
+        });
+    }
+  });
+  할일.sort((a, b) => b.무게 - a.무게);
+  강점.sort((a, b) => b.무게 - a.무게);
+
   const 칩 = (선택: boolean) =>
     `rounded-full border px-3 py-1.5 text-[12px] ${선택 ? "border-[#334fff] bg-[#334fff] font-semibold text-white" : "border-[#e4e6eb] bg-white text-[#5c626d]"}`;
+  const 범위링크 = (v: string) => `/analysis?${new URLSearchParams({ tab: "compare", 업권, 범위: v })}`;
+  // 운영 지표: 자사가 경쟁 중앙값보다 높으면 초록, 낮으면 빨강(높을수록 좋다고 보는 지표만)
+  const 비교색 = (우리: number | null | undefined, 기준: number | null) =>
+    우리 == null || 기준 == null || 기준 === 0 ? "" : 우리 >= 기준 * 1.1 ? "text-[#18794e]" : 우리 <= 기준 * 0.9 ? "text-[#c23934]" : "";
 
   return (
     <div>
       <div className="mb-5 flex flex-wrap items-center gap-2">
         <span className="text-[12px] font-medium text-[#8a8f98]">대상</span>
         {[["게재중", "지금 게재 중"], ["90일", "최근 90일 게재"]].map(([v, 라벨]) => (
-          <Link key={v} href={링크("범위", v)} className={칩((최근 ? "90일" : "게재중") === v)}>{라벨}</Link>
+          <Link key={v} href={범위링크(v)} className={칩((최근 ? "90일" : "게재중") === v)}>{라벨}</Link>
         ))}
       </div>
       {오류 && <div className="mb-5 rounded-xl bg-[#ebf1fd] p-4 text-[13px] text-[#2840d9]">{오류}</div>}
@@ -121,12 +182,33 @@ export async function 경쟁비교({ 업권, 범위 }: { 업권: string; 범위:
         </div>
       )}
 
-      {/* 1. 점유 */}
-      <section className="mb-8">
-        <h2 className="mb-1 text-[14px] font-bold">게재 점유 (Share of Voice)</h2>
-        <p className="mb-3 text-[12px] text-[#8a8f98]">게재 중 소재 수 기준. 광고비가 아니라 &lsquo;동시에 돌리는 소재 수&rsquo;입니다.</p>
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <타일
+          이름="게재 점유"
+          값={자사행 ? 퍼센트(자사행.게재중 / 총게재) : "-"}
+          설명={자사행 ? `${게재순.length}곳 중 ${자사순위}위 · ${자사행.게재중}건` : "자사 소재 없음"}
+          색={톤.자사.글}
+        />
+        <타일 이름="할 일 (공백·열세)" 값={String(할일.length)} 설명="경쟁사보다 덜 쓰는 것" 색={톤.나쁨.글} />
+        <타일 이름="강점 (자사 집중)" 값={String(강점.length)} 설명={`경쟁 평균보다 ${Math.round(강조_차이 * 100)}%p+ 더 쓰는 것`} 색={톤.좋음.글} />
+        <타일
+          이름="최근 30일 신규 투입"
+          값={자사행 ? String(자사행.신규30) : "-"}
+          설명={`경쟁사 중앙값 ${경쟁기준.신규30 ?? "-"}건`}
+        />
+      </div>
+
+      <구역 번호={1} 제목="할 일: 경쟁사는 하는데 우리는 덜 하는 것" 질문={`공백 = 경쟁 평균 ${퍼센트(경쟁_공백기준)} 이상(2곳 이상 사용)인데 자사 ${퍼센트(자사_공백기준)} 미만 · 열세 = 경쟁 평균보다 ${Math.round(강조_차이 * 100)}%p 이상 낮음`} 개수={할일.length}>
+        <카드목록 카드들={할일} 최대={9} 없을때="경쟁사 대비 크게 비는 곳이 없습니다." />
+      </구역>
+
+      <구역 번호={2} 제목="강점: 우리가 유난히 많이 하는 것" 질문="지킬지 줄일지 판단할 대상. 성과가 났다면 강점, 아니라면 쏠림입니다." 개수={강점.length}>
+        <카드목록 카드들={강점} 최대={6} 없을때="경쟁사보다 크게 쏠린 곳이 없습니다." />
+      </구역>
+
+      <구역 번호={3} 제목="게재 점유 (Share of Voice)" 질문="동시에 돌리는 소재 수 기준입니다. 광고비가 아닙니다.">
         <div className="space-y-1.5 rounded-xl border border-[#e9eaee] bg-white p-4">
-          {운영들.filter((x) => x.게재중 > 0).map((x) => (
+          {게재순.map((x) => (
             <div key={x.g} className="flex items-center gap-3 text-[12px]">
               <Link href={`/brands/${encodeURIComponent(x.g)}`} className={`w-[140px] shrink-0 truncate ${x.자사 ? "font-bold text-[#334fff]" : "font-medium"}`}>
                 {x.g}
@@ -138,17 +220,14 @@ export async function 경쟁비교({ 업권, 범위 }: { 업권: string; 범위:
             </div>
           ))}
         </div>
-      </section>
+      </구역>
 
-      {/* 2. 운영 방식 */}
-      <section className="mb-8">
-        <h2 className="mb-1 text-[14px] font-bold">운영 방식 비교</h2>
-        <p className="mb-3 text-[12px] text-[#8a8f98]">경쟁사 기준값은 소재 5건 이상 광고주들의 중앙값입니다.</p>
+      <구역 번호={4} 제목="운영 방식" 질문="경쟁사 기준값은 소재 5건 이상 광고주들의 중앙값입니다. 자사 칸 색: 중앙값보다 10% 이상 높음(초록) / 낮음(빨강).">
         <div className="overflow-x-auto rounded-xl border border-[#e9eaee] bg-white">
-          <table className="w-full text-[12px]">
+          <table className="w-full table-fixed text-[12px]">
             <thead className="bg-[#fafbfc] text-[11px] text-[#8a8f98]">
               <tr>
-                <th className="px-4 py-2 text-left font-medium">광고주</th>
+                <th className="w-[28%] px-4 py-2 text-left font-medium">광고주</th>
                 <th className="px-4 py-2 text-right font-medium">최근 30일 신규 투입</th>
                 <th className="px-4 py-2 text-right font-medium">소재 수명(중앙값)</th>
                 <th className="px-4 py-2 text-right font-medium">평균 변형 수</th>
@@ -157,86 +236,41 @@ export async function 경쟁비교({ 업권, 범위 }: { 업권: string; 범위:
             </thead>
             <tbody>
               {자사행 && (
-                <tr className="bg-[#f5f7ff] font-semibold text-[#334fff]">
-                  <td className="px-4 py-2">{자사행.g} (자사)</td>
-                  <td className="px-4 py-2 text-right">{자사행.신규30}</td>
-                  <td className="px-4 py-2 text-right">{자사행.수명 ?? "-"}일</td>
-                  <td className="px-4 py-2 text-right">{자사행.변형?.toFixed(1) ?? "-"}</td>
-                  <td className="px-4 py-2 text-right">{자사행.영상 !== null ? 퍼센트(자사행.영상) : "-"}</td>
+                <tr className="bg-[#f5f7ff] font-semibold">
+                  <td className="px-4 py-2 text-[#334fff]">{자사행.g} (자사)</td>
+                  <td className={`px-4 py-2 text-right ${비교색(자사행.신규30, 경쟁기준.신규30)}`}>{자사행.신규30}</td>
+                  <td className={`px-4 py-2 text-right ${비교색(자사행.수명, 경쟁기준.수명)}`}>{자사행.수명 != null ? `${자사행.수명}일` : "-"}</td>
+                  <td className={`px-4 py-2 text-right ${비교색(자사행.변형, 경쟁기준.변형)}`}>{자사행.변형?.toFixed(1) ?? "-"}</td>
+                  <td className={`px-4 py-2 text-right ${비교색(자사행.영상, 경쟁기준.영상)}`}>{자사행.영상 !== null ? 퍼센트(자사행.영상) : "-"}</td>
                 </tr>
               )}
               <tr className="border-t border-[#e9eaee] bg-[#fafbfc] font-semibold">
                 <td className="px-4 py-2">경쟁사 중앙값</td>
                 <td className="px-4 py-2 text-right">{경쟁기준.신규30 ?? "-"}</td>
-                <td className="px-4 py-2 text-right">{경쟁기준.수명 ?? "-"}일</td>
+                <td className="px-4 py-2 text-right">{경쟁기준.수명 != null ? `${경쟁기준.수명}일` : "-"}</td>
                 <td className="px-4 py-2 text-right">{경쟁기준.변형?.toFixed(1) ?? "-"}</td>
                 <td className="px-4 py-2 text-right">{경쟁기준.영상 !== null ? 퍼센트(경쟁기준.영상) : "-"}</td>
               </tr>
-              {경쟁운영.map((x) => (
-                <tr key={x.g} className="border-t border-[#f0f1f4]">
-                  <td className="px-4 py-2">{x.g}</td>
-                  <td className="px-4 py-2 text-right tabular-nums">{x.신규30}</td>
-                  <td className="px-4 py-2 text-right tabular-nums">{x.수명 ?? "-"}일</td>
-                  <td className="px-4 py-2 text-right tabular-nums">{x.변형?.toFixed(1) ?? "-"}</td>
-                  <td className="px-4 py-2 text-right tabular-nums">{x.영상 !== null ? 퍼센트(x.영상) : "-"}</td>
-                </tr>
-              ))}
             </tbody>
           </table>
+          <details className="border-t border-[#f0f1f4]">
+            <summary className="cursor-pointer px-4 py-2 text-[11px] text-[#8a8f98] hover:text-[#334fff]">광고주별 보기 ({경쟁운영.length}곳)</summary>
+            <table className="w-full table-fixed text-[12px]">
+              <tbody>
+                {경쟁운영.map((x) => (
+                  <tr key={x.g} className="border-t border-[#f0f1f4]">
+                    <td className="px-4 py-2">{x.g}</td>
+                    <td className="px-4 py-2 text-right tabular-nums">{x.신규30}</td>
+                    <td className="px-4 py-2 text-right tabular-nums">{x.수명 != null ? `${x.수명}일` : "-"}</td>
+                    <td className="px-4 py-2 text-right tabular-nums">{x.변형?.toFixed(1) ?? "-"}</td>
+                    <td className="px-4 py-2 text-right tabular-nums">{x.영상 !== null ? 퍼센트(x.영상) : "-"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </details>
         </div>
-      </section>
-
-      {/* 3. 축별 격차 */}
-      <section>
-        <h2 className="mb-1 text-[14px] font-bold">축별 격차: 자사 vs 경쟁사 평균</h2>
-        <p className="mb-3 text-[12px] text-[#8a8f98]">
-          <span className="rounded bg-[#fff1f0] px-1.5 font-semibold text-[#c23934]">공백</span> 경쟁사 평균은 {퍼센트(경쟁_공백기준)} 이상 쓰는데 자사는 거의 안 쓰는 것 ·{" "}
-          <span className="rounded bg-[#e7f6ec] px-1.5 font-semibold text-[#18794e]">자사 집중</span> 자사가 {Math.round(강조_차이 * 100)}%p 이상 더 쓰는 것
-        </p>
-        <div className="grid gap-4 xl:grid-cols-2">
-          {축들.map(([이름], i) => {
-            const 비교 = 축비교(분포들[i] ?? [], (v) => (이름 === "형식" ? (형식이름[v] ?? v) : v));
-            return (
-              <div key={이름} className="rounded-xl border border-[#e9eaee] bg-white p-4">
-                <div className="mb-2 flex items-baseline gap-2">
-                  <h3 className="text-[13px] font-bold">{이름}</h3>
-                  <span className="text-[11px] text-[#a7adb8]">자사 {비교.자사합}건 · 경쟁사 {비교.경쟁수}곳</span>
-                </div>
-                <table className="w-full text-[12px]">
-                  <thead className="text-[10px] text-[#a7adb8]">
-                    <tr>
-                      <th className="py-1 text-left font-medium">값</th>
-                      <th className="py-1 text-right font-medium">자사</th>
-                      <th className="py-1 text-right font-medium">경쟁 평균</th>
-                      <th className="py-1 text-right font-medium">가장 많이 쓰는 곳</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {비교.줄.slice(0, 10).map((x) => {
-                      const 공백 = 비교.자사합 > 0 && x.우리 < 자사_공백기준 && x.평균 >= 경쟁_공백기준;
-                      const 집중 = 비교.자사합 > 0 && x.차이 >= 강조_차이;
-                      return (
-                        <tr key={x.v} className="border-t border-[#f0f1f4]">
-                          <td className="py-1.5">
-                            {x.이름}
-                            {공백 && <span className="ml-1.5 rounded bg-[#fff1f0] px-1.5 text-[10px] font-bold text-[#c23934]">공백</span>}
-                            {집중 && <span className="ml-1.5 rounded bg-[#e7f6ec] px-1.5 text-[10px] font-bold text-[#18794e]">자사 집중</span>}
-                          </td>
-                          <td className="py-1.5 text-right font-semibold tabular-nums text-[#334fff]">{비교.자사합 ? 퍼센트(x.우리) : "-"}</td>
-                          <td className="py-1.5 text-right tabular-nums">{퍼센트(x.평균)}</td>
-                          <td className="py-1.5 text-right text-[#8a8f98]">
-                            {x.최다 && x.최다.p > 0 ? `${x.최다.g} ${퍼센트(x.최다.p)}` : "-"}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            );
-          })}
-        </div>
-      </section>
+      </구역>
     </div>
   );
 }
