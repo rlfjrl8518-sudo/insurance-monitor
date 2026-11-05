@@ -30,8 +30,37 @@ export type 광고 = {
   labels: Record<string, string>;
   started_on: string | null;
   ended_on: string | null;
-  status: string | null;
+  first_seen_on: string | null;
+  status: string | null;          // 게재중 / 종료
   running_days: number;
+  category: string | null;        // 업권
+  confidence: number | null;      // 분류 확신도 0~1
+  title: string | null;
+  cta: string | null;
+  landing_url: string | null;
+  display_format: string | null;
+  platforms: string | null;
+  variant_count: number | null;
+  collation_id: string | null;
+};
+
+/** 화면 목록·상세에서 쓰는 컬럼. 쿼리마다 다시 적지 않게 한 곳에 둔다. */
+export const 광고컬럼 = sql.unsafe(`ad_id, advertiser, advertiser_group, segment, image_url, detail_url,
+  ad_text, summary, creative_type, insurance_type, appeal_point, labels, started_on, ended_on,
+  first_seen_on, status, running_days, category, confidence, title, cta, landing_url,
+  display_format, platforms, variant_count, collation_id`);
+
+/** '신규'는 상태가 아니라 표시다. 최근 이 일수 안에 처음 발견된 게재중 소재. */
+export const 신규_일수 = 7;
+
+export function 신규인가(행: Pick<광고, "first_seen_on" | "status">) {
+  if (!행.first_seen_on || 행.status === "종료") return false;
+  const d = new Date(행.first_seen_on as unknown as string).getTime();
+  return Date.now() - d <= 신규_일수 * 86400000;
+}
+
+export const 형식이름: Record<string, string> = {
+  IMAGE: "이미지", VIDEO: "영상", CAROUSEL: "캐러셀", DCO: "다이내믹", DPA: "카탈로그", MULTI_IMAGES: "다중 이미지",
 };
 
 /** 화면에 쓸 광고주 표시명. 그룹이 있으면 그룹명, 없으면 페이지명 자체를 쓴다. */

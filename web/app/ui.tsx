@@ -46,12 +46,14 @@ export function 칩줄({
   현재값,
   목록,
   조건,
+  전체없음,
 }: {
   제목: string;
   키: string;
   현재값: string;
-  목록: { v: string; n: number }[];
+  목록: { v: string; n: number; 라벨?: string }[];
   조건: Record<string, string | undefined>;
+  전체없음?: boolean;
 }) {
   if (!목록.length) return null;
   return (
@@ -60,11 +62,11 @@ export function 칩줄({
         {제목}
       </div>
       <div className="flex flex-wrap gap-1.5">
-        <칩 라벨="전체" 선택됨={!현재값} href={조건링크(조건, 키, "")} />
+        {!전체없음 && <칩 라벨="전체" 선택됨={!현재값} href={조건링크(조건, 키, "")} />}
         {목록.map((x) => (
           <칩
             key={x.v}
-            라벨={x.v}
+            라벨={x.라벨 ?? x.v}
             개수={x.n}
             선택됨={현재값 === x.v}
             href={조건링크(조건, 키, x.v)}

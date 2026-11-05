@@ -78,10 +78,7 @@ export async function 분류규칙_저장(formData: FormData) {
   await 저장("classification_rules", 규칙);
 }
 
-/** NVIDIA 모델명. API 키는 여기서 다루지 않는다 — 키는 GitHub Secrets에만 둔다. */
+/** 우선 쓸 분류 모델(Vertex AI Gemini). 키는 여기서 다루지 않는다 — GitHub Secrets에만 둔다. */
 export async function 모델_저장(formData: FormData) {
-  await 저장("nvidia_models", {
-    model: String(formData.get("model") ?? "").trim(),
-    vision_model: String(formData.get("vision_model") ?? "").trim(),
-  });
+  await 저장("ai_model", { model: String(formData.get("model") ?? "").trim() });
 }
