@@ -43,6 +43,8 @@ export default async function 설정() {
                    (select max(run_at)::date::text from collection_runs x
                      where x.advertiser = r.advertiser and x.status in ('정상', '게재없음')) 마지막정상
             from collection_runs r order by advertiser, run_at desc) t
+          -- '새 페이지'는 주 1회 점검 결과라 다음 점검(7일)이 지나면 내린다. 등록하면 다음 점검부터 안 뜬다.
+          where not (status = '새 페이지' and run_at < now() - interval '8 days')
           order by (status in ('정상', '게재없음')), coverage nulls first, advertiser` as unknown as Promise<수집기록[]>,
     ]);
     for (const r of a) 저장됨[r.key] = r.value;
@@ -91,7 +93,7 @@ export default async function 설정() {
         <h2 className="mb-1 text-[14px] font-bold">최근 수집 회차</h2>
         <p className="mb-3 text-[12px] text-[#8a8f98]">
           수집률 = 이번에 읽은 건수 ÷ 광고 라이브러리가 말하는 게재 건수. 100%가 아닌 회차에는 종료 판정을 하지 않습니다.
-          &lsquo;페이지없음&rsquo;이면 아래 후보 페이지명을 보고 수집 대상 칸에 &lsquo;검색어&gt;실제페이지명&rsquo;으로 고쳐 주세요.
+          &lsquo;페이지없음&rsquo;이면 아래 후보 페이지명을 보고 수집 대상 칸에 &lsquo;검색어&gt;실제페이지명&rsquo;으로 고쳐 주세요. &lsquo;새 페이지&rsquo;는 주 1회 주요 보험사 이름으로 검색해 찾은, 광고를 내는데 수집 대상에 없는 페이지입니다. 같은 회사 채널이면 수집 대상에 페이지명을 추가하세요.
         </p>
         <div className="mb-8 overflow-hidden rounded-xl border border-[#e9eaee] bg-white">
           <table className="w-full text-[12px]">

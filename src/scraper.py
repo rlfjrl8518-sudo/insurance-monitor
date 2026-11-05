@@ -307,10 +307,19 @@ def 광고주_광고_수집(page, 광고주항목, 설정, 페이지캐시, 진�
             광고들[광고["라이브러리ID"]] = 광고
     담기(원본)
 
-    # 첫 화면은 최대 30건. 그보다 많으면 매체 유형별로 나눠 각각의 첫 화면을 더 읽는다.
+    # 첫 화면은 최대 30건(다음 페이지는 비로그인 Rate limit). 그보다 많으면 매체 유형별로,
+    # 그래도 모자라면 '이 날짜까지 시작한 광고' 묶음별로 첫 화면을 더 읽어 합친다.
+    # 묶음은 겹치지만 날짜마다 다른 30건이 와서 합집합이 커진다(한화생명 154건 기준 실측).
     if 표시건수 and len(원본) < 표시건수:
         for 유형 in ("image", "video", "meme", "none"):
             추가 = 결과_읽기(page, 페이지_URL(page_id, 설정, 유형), 설정)
+            if 추가:
+                담기(추가[1])
+        from datetime import date
+        for 까지 in 시작일_묶음_날짜(date.today()):
+            if len(본_ID) >= 표시건수:
+                break
+            추가 = 결과_읽기(page, 페이지_URL(page_id, 설정, 시작_까지=까지), 설정)
             if 추가:
                 담기(추가[1])
 
@@ -328,11 +337,20 @@ def 검색_URL_생성(검색어, 설정):
     return 광고라이브러리_기본URL + "?" + urlencode(쿼리)
 
 
-def 페이지_URL(page_id, 설정, 매체="all"):
+def 페이지_URL(page_id, 설정, 매체="all", 시작_까지=None):
+    """시작_까지: 이 날짜까지 게재를 시작한 광고만. (start_date[min]은 메타가 무시한다 — 2026-11 확인)"""
     쿼리 = {"active_status": 설정["scraping"]["active_status"], "ad_type": "all",
            "country": 설정["scraping"]["country"], "view_all_page_id": page_id,
            "search_type": "page", "media_type": 매체}
+    if 시작_까지:
+        쿼리["start_date[max]"] = 시작_까지.isoformat()
     return 광고라이브러리_기본URL + "?" + urlencode(쿼리)
+
+
+def 시작일_묶음_날짜(오늘, 개수=8):
+    """'이 날짜까지 시작한 광고' 묶음을 만들 날짜들. 최근은 촘촘히(2주), 옛날은 성기게(월)."""
+    from datetime import timedelta
+    return [오늘 - timedelta(days=d) for d in (7, 14, 21, 35, 50, 70, 100, 150)][:개수]
 
 
 def SSR_결과_추출(html):
@@ -379,6 +397,31 @@ def 페이지ID_찾기(page, 검색어, 페이지명, 설정, 진행_콜백=prin
     if 후보:
         진행_콜백(f"  [확인 필요] '{페이지명}' 대신 보이는 페이지: {', '.join(n for n, _ in 후보)}")
     return None, 후보
+
+
+def 새_페이지_찾기(page, 검색어들, 등록된, 설정, 진행_콜백=print):
+    """검색어마다 키워드 검색 첫 화면을 보고, 광고를 내는데 수집 대상에 없는 페이지를 모은다.
+
+    페이지명에 검색어의 첫 단어(회사명)가 들어간 것만 본다. 비교 사이트·GA처럼 남의 페이지가
+    회사명을 광고 문구에 쓰는 경우를 거르기 위해서다. 자동으로 수집 대상에 넣지는 않고 사람에게 알린다
+    (같은 회사 다른 법인 — 한화손보 vs 한화손보 캐롯 — 이 섞이는 걸 막으려고).
+    """
+    찾음 = {}
+    for 검색어 in 검색어들:
+        결과 = 결과_읽기(page, 검색_URL_생성(검색어, 설정), 설정)
+        if not 결과:
+            continue
+        핵심 = 페이지명_정규화(검색어.split()[0])
+        for r in 결과[1]:
+            이름 = (r.get("page_name") or "").strip()
+            키 = 페이지명_정규화(이름)
+            if not 이름 or 키 in 등록된 or 핵심 not in 키:
+                continue
+            x = 찾음.setdefault(키, {"이름": 이름, "page_id": str(r.get("page_id")), "검색어": 검색어, "광고": 0})
+            x["광고"] += 1
+    if 찾음:
+        진행_콜백(f"  새 페이지 {len(찾음)}곳: {', '.join(x['이름'] for x in 찾음.values())}")
+    return list(찾음.values())
 
 
 def _KST_날짜(유닉스):

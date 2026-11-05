@@ -78,7 +78,8 @@
     "active_status": "active",
     "ad_type": "all",
     "page_load_wait_seconds": 5,
-    "headless": true
+    "headless": true,
+    "page_check_keywords": ["삼성화재", "현대해상", "DB손해보험", "KB손해보험", "메리츠화재", "한화손해보험", "롯데손해보험", "하나손해보험", "흥국화재", "NH농협손해보험", "AXA손해보험", "카카오페이손해보험", "캐롯", "삼성생명", "한화생명", "교보생명", "신한라이프", "NH농협생명", "동양생명", "미래에셋생명", "라이나생명", "AIA생명", "메트라이프", "KB라이프", "흥국생명", "DB생명", "ABL생명", "푸본현대생명", "하나생명", "iM라이프"]
   },
   "paths": {
     "csv_file": "data/ads.csv",

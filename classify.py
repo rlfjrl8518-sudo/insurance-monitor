@@ -7,6 +7,7 @@ CSV에서 아직 분류되지 않은(소재유형이 빈) 광고를 이미지+�
 6주 동안 아무도 몰랐다.
 """
 
+from src.text_utils import 고지문_제거
 import os
 import sys
 import threading
@@ -27,10 +28,37 @@ def _할당량_초과_예외인가(e):
     return type(e).__name__ in ("RateLimitError", "ResourceExhausted", "TooManyRequests")
 
 
+축이름 = {"creative_type": "소재유형", "insurance_type": "보종", "appeal_point": "소구포인트"}
+
+
+def 교정사례_불러오기(최대=40):
+    """웹 '분류 고치기'로 사람이 고친 최근 사례. DB가 없거나(로컬) 실패하면 빈 목록 — 분류는 그대로 돈다."""
+    주소 = os.environ.get("DATABASE_URL")
+    if not 주소:
+        return []
+    try:
+        import psycopg
+
+        with psycopg.connect(주소, connect_timeout=10) as 연결:
+            행들 = 연결.execute(
+                "select o.axis, o.ai_value, o.value, coalesce(a.ad_text, '') from label_overrides o "
+                "join ads a on a.ad_id = o.ad_id "
+                "where o.axis = any(%s) and o.ai_value is distinct from o.value "
+                "order by o.updated_at desc nulls last limit %s",
+                (list(축이름), 최대),
+            ).fetchall()
+    except Exception as e:
+        print(f"교정 사례를 못 읽어 예시 없이 분류합니다: {e}")
+        return []
+    return [(축이름[축], ai, 사람, 고지문_제거(본문)) for 축, ai, 사람, 본문 in 행들]
+
+
 def 실행(전체_재분류=False):
     설정 = 설정_불러오기()
     서비스계정_경로 = 경로_절대화(설정["google_sheets"]["service_account_file"])
     설정 = 설정_동적_적용(설정, 서비스계정_경로)
+    설정["교정사례"] = 교정사례_불러오기()
+    print(f"교정 사례 {len(설정['교정사례'])}건을 프롬프트에 붙입니다.")
 
     csv_경로 = 경로_절대화(설정["paths"]["csv_file"])
     이미지_폴더 = 경로_절대화(설정["paths"]["images_dir"])

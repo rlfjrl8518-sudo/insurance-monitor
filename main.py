@@ -11,7 +11,8 @@ from playwright.sync_api import sync_playwright
 from src.config_loader import 경로_절대화, 설정_불러오기
 from src.csv_store import (CSV_쓰기, CSV_읽기, 데이터_병합, 운영일수_계산,
                            단일_광고_추가_또는_갱신, 오늘_KST, 상태_종료, _임시_주소인가)
-from src.scraper import 광고_상세_조회, 광고주_광고_수집, 광고주_해석, 이미지_다운로드, 이미지_확장자_추출
+from src.scraper import (광고_상세_조회, 광고주_광고_수집, 광고주_해석, 새_페이지_찾기, 이미지_다운로드,
+                         이미지_확장자_추출, 페이지명_정규화)
 from src.settings_store import 광고주_분류, 설정_읽기
 from src.sheets_sync import 구글_인증, 설정_동적_적용, 수동추가_대기목록_가져오기, 수동추가_상태_갱신
 
@@ -300,6 +301,21 @@ def 실행():
             기록.update(신규=신규, 종료=신규종료)
             print(f"  -> 신규 {신규}건 / 유지 {유지}건 / 종료 {신규종료}건"
                   + ("" if 완전수집 else " (일부만 읽혀 종료 판정 보류)"))
+
+        # 주 1회: 주요 보험사 이름으로 검색해 광고를 내는데 수집 대상에 없는 페이지(새 채널·이름 바뀐 페이지)를 찾는다.
+        마지막점검 = 페이지캐시.get("_페이지점검일", "")
+        if os.environ.get("PAGE_CHECK") == "1" or not 마지막점검 or (오늘 - date.fromisoformat(마지막점검)).days >= 7:
+            print("\n[페이지 점검] 주요 보험사 페이지 확인 중...")
+            검색어들 = list(dict.fromkeys(
+                [광고주_해석(x)[0] for x in 설정["advertisers"]] + 설정["scraping"].get("page_check_keywords", [])))
+            등록된 = {페이지명_정규화(광고주_해석(x)[1]) for x in 설정["advertisers"]} | {k for k in 페이지캐시 if not k.startswith("_")}
+            for x in 새_페이지_찾기(page, 검색어들, 등록된, 설정):
+                건강.append({"run_at": 시각, "광고주": f"새 페이지 · {x['이름']}", "page_id": x["page_id"],
+                           "상태": "새 페이지", "표시건수": None, "수집건수": x["광고"], "수집률": None,
+                           "신규": 0, "종료": 0, "후보": [f"{x['이름']} ({x['page_id']})"],
+                           "메시지": f"'{x['검색어']}' 검색에서 광고를 내는 페이지인데 수집 대상에 없음. "
+                                    f"같은 회사 채널이면 수집 대상에 페이지명을 추가하세요."})
+            페이지캐시["_페이지점검일"] = 오늘.isoformat()
 
         방치_정리(전체_데이터, {광고주_해석(x)[0] for x in 설정["advertisers"]}, 오늘)
         수동추가_처리(page, 설정, 서비스계정_경로, 전체_데이터, 이미지_폴더, 오늘)

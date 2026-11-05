@@ -59,12 +59,6 @@ from datetime import datetime
 # 설정 시트에서 고정된 의미를 갖는 컬럼 (나머지 컬럼은 모두 광고주 카테고리로 취급)
 고정_분류_컬럼 = ["소재유형", "보종", "소구포인트", "자사"]
 
-# AI 분류 규칙(우선순위/키워드 정의) 텍스트를 직접 입력·수정하는 워크시트 이름
-분류규칙_시트이름 = "분류규칙"
-
-# 분류규칙 시트에 값이 있는 축 - classifier.py의 기본 규칙을 시트 값으로 덮어씀
-분류규칙_축_목록 = ["소재유형", "보종", "소구포인트"]
-
 
 def 구글_인증(서비스계정_경로):
     """서비스 계정 키 파일로 gspread 클라이언트를 생성한다."""
@@ -241,68 +235,6 @@ def AI설정_시트_읽기(gc, 설정):
         return {}
 
 
-def 분류규칙_시트_초기화(gc, 설정):
-    """'분류규칙' 워크시트가 없으면 classifier.py에 있는 현재 기본 규칙 텍스트로 새로 만든다.
-
-    이미 존재하면 손대지 않는다 - 사용자가 시트에서 직접 수정한 규칙을 보존하기 위함.
-    """
-    스프레드시트 = gc.open_by_key(설정["google_sheets"]["spreadsheet_id"])
-
-    try:
-        스프레드시트.worksheet(분류규칙_시트이름)
-        return
-    except gspread.WorksheetNotFound:
-        pass
-
-    # classifier.py는 openai SDK에 의존하므로, 시트 동기화만 필요한
-    # 최소 의존성 환경(예: push_to_sheet.yml)이 깨지지 않도록 여기서 지연 import한다.
-    from src.classifier import (
-        소재유형_분류_규칙 as 기본_소재유형_규칙,
-        보종_분류_규칙 as 기본_보종_규칙,
-        소구포인트_분류_규칙 as 기본_소구포인트_규칙,
-    )
-
-    기본_규칙 = {
-        "소재유형": 기본_소재유형_규칙,
-        "보종": 기본_보종_규칙,
-        "소구포인트": 기본_소구포인트_규칙,
-    }
-    데이터 = [["축", "규칙텍스트"]] + [[축, 기본_규칙[축]] for 축 in 분류규칙_축_목록]
-
-    워크시트 = 스프레드시트.add_worksheet(
-        title=분류규칙_시트이름, rows=len(분류규칙_축_목록) + 1, cols=2
-    )
-    워크시트.update(데이터, "A1")
-    try:
-        워크시트.format("A1:B1", {"textFormat": {"bold": True}})
-        워크시트.format("B2:B4", {"wrapStrategy": "WRAP", "verticalAlignment": "TOP"})
-    except Exception:
-        pass  # 서식 실패는 무시 (규칙 저장 자체는 이미 완료됨)
-
-
-def 분류규칙_시트_읽기(gc, 설정):
-    """'분류규칙' 시트에서 축별 규칙 텍스트를 읽어온다.
-
-    시트가 없거나 비어 있으면 빈 딕셔너리를 반환한다 (호출 측에서 classifier.py
-    기본 규칙으로 자연스럽게 폴백함).
-    """
-    try:
-        스프레드시트 = gc.open_by_key(설정["google_sheets"]["spreadsheet_id"])
-        워크시트 = 스프레드시트.worksheet(분류규칙_시트이름)
-        값 = 워크시트.get_all_values()
-    except gspread.WorksheetNotFound:
-        return {}
-    except Exception as e:
-        print(f"'분류규칙' 시트를 읽지 못해 기본 규칙을 사용합니다: {e}")
-        return {}
-
-    결과 = {}
-    for 행 in 값[1:]:
-        if len(행) >= 2 and 행[0] and 행[1]:
-            결과[행[0]] = 행[1]
-    return 결과
-
-
 def 설정_동적_적용(설정, 서비스계정_경로):
     """'설정' 시트에 입력된 광고주 카테고리/소재유형/보종/소구포인트 목록과 '분류규칙' 시트에
     입력된 우선순위·키워드 규칙 텍스트가 있으면 설정값을 덮어쓴다.
@@ -330,8 +262,8 @@ def 설정_동적_적용(설정, 서비스계정_경로):
         gc = 구글_인증(서비스계정_경로)
         설정_시트_초기화(gc, 설정)
         시트설정 = 설정_시트_읽기(gc, 설정)
-        분류규칙_시트_초기화(gc, 설정)
-        설정["classification_rules"] = 분류규칙_시트_읽기(gc, 설정)
+        # 분류 기준은 웹 설정(비우면 코드 기본 규칙)만 쓴다. 시트 '분류규칙' 탭엔 옛 기본 규칙이 복사돼 있어
+        # 코드에서 기준을 고쳐도 시트가 덮어썼다(2026-11 소구포인트 재정의 때 발견).
     except Exception as e:
         print(f"'설정' 시트를 읽지 못해 config.json 기본값을 사용합니다: {e}")
         _웹_설정_덮어쓰기(설정)
