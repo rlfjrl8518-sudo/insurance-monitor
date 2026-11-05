@@ -29,7 +29,7 @@ export default async function 브랜드목록({ searchParams }: { searchParams: 
         select coalesce(advertiser_group, advertiser) 그룹,
                count(*)::int 전체,
                count(*) filter (where status <> '종료')::int 게재중,
-               count(*) filter (where status <> '종료' and first_seen_on >= current_date - 7)::int 신규,
+               count(*) filter (where status <> '종료' and coalesce(started_on, first_seen_on) >= current_date - 7)::int 신규,
                max(category) 업권,
                bool_or(segment = '자사') 자사,
                max(started_on) 최근,

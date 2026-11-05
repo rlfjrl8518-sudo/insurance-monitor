@@ -25,36 +25,36 @@ export default async function 변화({ searchParams }: { searchParams: Promise<{
   try {
     [광고주, 신규보종, 장수, 새소재, 추이, 주별] = (await Promise.all([
       sql`select coalesce(advertiser_group, advertiser) g,
-                 count(*) filter (where first_seen_on >= current_date - ${일}::int)::int 이번,
-                 count(*) filter (where first_seen_on >= current_date - ${일 * 2}::int
-                                    and first_seen_on < current_date - ${일}::int)::int 지난,
+                 count(*) filter (where coalesce(started_on, first_seen_on) >= current_date - ${일}::int)::int 이번,
+                 count(*) filter (where coalesce(started_on, first_seen_on) >= current_date - ${일 * 2}::int
+                                    and coalesce(started_on, first_seen_on) < current_date - ${일}::int)::int 지난,
                  count(*) filter (where status <> '종료')::int 게재중,
                  count(*) filter (where status = '종료' and ended_on >= current_date - ${일}::int)::int 종료
           from ads group by 1
-          having count(*) filter (where first_seen_on >= current_date - ${일 * 2}::int) > 0
+          having count(*) filter (where coalesce(started_on, first_seen_on) >= current_date - ${일 * 2}::int) > 0
               or count(*) filter (where status = '종료' and ended_on >= current_date - ${일}::int) > 0
           order by 이번 desc`,
       sql`select coalesce(advertiser_group, advertiser) g, insurance_type v, count(*)::int n
           from ads a
-          where first_seen_on >= current_date - ${일}::int and insurance_type not in ('', '기타')
+          where coalesce(started_on, first_seen_on) >= current_date - ${일}::int and insurance_type not in ('', '기타')
             and not exists (
               select 1 from ads b
               where coalesce(b.advertiser_group, b.advertiser) = coalesce(a.advertiser_group, a.advertiser)
                 and b.insurance_type = a.insurance_type
-                and b.first_seen_on < current_date - ${일}::int
+                and coalesce(b.started_on, b.first_seen_on) < current_date - ${일}::int
                 and coalesce(b.ended_on, current_date) >= current_date - 60)
           group by 1, 2 order by 3 desc`,
       sql`select ad_id, coalesce(advertiser_group, advertiser) g, running_days, insurance_type, image_url
           from ads where status = '종료' and ended_on >= current_date - ${일}::int and running_days >= 60
           order by running_days desc limit 16`,
       sql`select ad_id, coalesce(advertiser_group, advertiser) g, image_url, insurance_type
-          from ads where first_seen_on >= current_date - ${일}::int and status <> '종료' and segment <> '자사'
-          order by first_seen_on desc, variant_count desc nulls last limit 24`,
+          from ads where coalesce(started_on, first_seen_on) >= current_date - ${일}::int and status <> '종료' and segment <> '자사'
+          order by coalesce(started_on, first_seen_on) desc, variant_count desc nulls last limit 24`,
       sql`select to_char(seen_on, 'MM/DD') v, count(*)::int n from ad_sightings
           where seen_on >= current_date - 42 group by seen_on order by seen_on`,
-      sql`select to_char(date_trunc('week', first_seen_on), 'MM/DD') v, count(*)::int n
-          from ads where first_seen_on >= current_date - interval '12 weeks'
-          group by date_trunc('week', first_seen_on) order by date_trunc('week', first_seen_on)`,
+      sql`select to_char(date_trunc('week', coalesce(started_on, first_seen_on)), 'MM/DD') v, count(*)::int n
+          from ads where coalesce(started_on, first_seen_on) >= current_date - interval '12 weeks'
+          group by date_trunc('week', coalesce(started_on, first_seen_on)) order by date_trunc('week', coalesce(started_on, first_seen_on))`,
     ])) as unknown as [광고주변화[], 진입[], 장수종료[], 썸네일[], { v: string; n: number }[], { v: string; n: number }[]];
   } catch (e) {
     오류 = e instanceof Error ? e.message : String(e);
@@ -78,7 +78,7 @@ export default async function 변화({ searchParams }: { searchParams: Promise<{
       <div className="mb-8 grid gap-4 lg:grid-cols-2">
         {[
           ["게재 중 소재 수 (일별, 최근 6주)", 추이, "2026-11 수집 개편 이후부터 쌓입니다."],
-          ["새로 발견된 소재 (주별, 12주)", 주별, "처음 발견된 주 기준입니다."],
+          ["새로 시작한 소재 (주별, 12주)", 주별, "광고 시작일 기준입니다(시작일이 없으면 처음 발견일)."],
         ].map(([제목, 값들, 메모]) => {
           const 목록 = 값들 as { v: string; n: number }[];
           const 최대 = Math.max(1, ...목록.map((x) => x.n));

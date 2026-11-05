@@ -28,6 +28,7 @@ type 검색조건 = {
  *  표시라서 따로 칩(신규만)으로 뺐다. '운영중'과 '게재중'이 따로 있어 헷갈리던 문제를 없앤다. */
 const 기본상태 = "게재중";
 const 쪽크기 = 120;
+const 광고주당 = 12;
 
 /** 분류 확신도가 이보다 낮으면 사람이 한 번 보는 게 좋다. */
 const 검수기준 = 0.7;
@@ -40,7 +41,7 @@ const 운영일수_구간: Record<string, [number, number]> = {
 };
 
 const 정렬식: Record<string, string> = {
-  최신: "first_seen_on desc nulls last, started_on desc nulls last, ad_id",
+  최신: "coalesce(started_on, first_seen_on) desc nulls last, ad_id",
   오래간: "running_days desc, ad_id",
   변형많은: "variant_count desc nulls last, running_days desc, ad_id",
 };
@@ -52,7 +53,7 @@ function 조건절(조건: 검색조건) {
   const 패턴 = "%" + 검색어 + "%";
   return sql`
         (${상태} = '전체' or status = ${상태})
-    and (${조건.신규 ?? ""} = '' or (status <> '종료' and first_seen_on >= current_date - ${신규_일수}::int))
+    and (${조건.신규 ?? ""} = '' or (status <> '종료' and coalesce(started_on, first_seen_on) >= current_date - ${신규_일수}::int))
     and (${조건.검수 ?? ""} = '' or ((creative_type is null or creative_type = '' or confidence < ${검수기준})
                                      and not exists (select 1 from label_overrides o where o.ad_id = ads.ad_id)))
     and (${검색어} = '' or (coalesce(ad_text, '') || ' ' || coalesce(summary, '') || ' ' || coalesce(title, '')) ilike ${패턴}
@@ -100,6 +101,9 @@ export default async function 탐색({
   const 상태 = 조건.상태 ?? 기본상태;
   const 정렬 = 정렬식[조건.정렬 ?? ""] ? 조건.정렬! : "최신";
   const 쪽 = Math.max(1, Number(조건.쪽) || 1);
+  // 광고주를 안 골랐으면 광고주마다 최신 몇 건씩 보여준다. 예전엔 전체를 120건씩 잘라 묶어서
+  // 첫 쪽에 어떤 광고주는 1~2건만, 어떤 광고주는 아예 안 나왔다(2026-11 삼성화재·흥국화재).
+  const 광고주별 = !조건.그룹;
 
   let 행들: 광고[] = [];
   let 건수 = 0;
@@ -110,11 +114,17 @@ export default async function 탐색({
 
   try {
     const [ads, 수, 그룹, 업권, 소재, 보종, 소구, 형식, 현황, 축값] = await Promise.all([
-      sql`select ${광고컬럼} from ads where ${조건절(조건)}
-          order by ${sql.unsafe(정렬식[정렬])} limit ${쪽크기} offset ${(쪽 - 1) * 쪽크기}` as unknown as Promise<광고[]>,
+      광고주별
+        ? (sql`select * from (
+              select ${광고컬럼}, count(*) over (partition by coalesce(advertiser_group, advertiser))::int 그룹건수,
+                     row_number() over (partition by coalesce(advertiser_group, advertiser) order by ${sql.unsafe(정렬식[정렬])}) 순번
+              from ads where ${조건절(조건)}) t
+            where 순번 <= ${광고주당} order by 그룹건수 desc, coalesce(advertiser_group, advertiser), 순번` as unknown as Promise<광고[]>)
+        : (sql`select ${광고컬럼} from ads where ${조건절(조건)}
+            order by ${sql.unsafe(정렬식[정렬])} limit ${쪽크기} offset ${(쪽 - 1) * 쪽크기}` as unknown as Promise<광고[]>),
       sql`select count(*)::int n from ads where ${조건절(조건)}` as unknown as Promise<{ n: number }[]>,
       sql`select coalesce(advertiser_group, advertiser) v, count(*)::int n
-          from ads where ${조건절(조건)} group by 1 order by n desc limit 30` as unknown as Promise<값개수[]>,
+          from ads where ${조건절(조건)} group by 1 order by n desc limit 80` as unknown as Promise<값개수[]>,
       선택지("category", 조건),
       선택지("creative_type", 조건),
       선택지("insurance_type", 조건),
@@ -122,7 +132,7 @@ export default async function 탐색({
       선택지("display_format", 조건),
       sql`select count(*)::int 전체,
                  count(*) filter (where status <> '종료')::int 게재중,
-                 count(*) filter (where status <> '종료' and first_seen_on >= current_date - ${신규_일수}::int)::int 신규,
+                 count(*) filter (where status <> '종료' and coalesce(started_on, first_seen_on) >= current_date - ${신규_일수}::int)::int 신규,
                  count(distinct coalesce(advertiser_group, advertiser)) filter (where status <> '종료')::int 광고주,
                  count(*) filter (where creative_type is null or creative_type = '')::int 미분류,
                  count(*) filter (where creative_type <> '' and confidence < ${검수기준}
@@ -161,11 +171,13 @@ export default async function 탐색({
     }
   }
 
+  // '전체'도 상태 값 중 하나라 칩줄의 자동 '전체' 칩은 끈다(예전엔 전체가 두 개였고, 앞의 것은 눌러도 게재중이었다).
   const 상태목록: 값개수[] = ["게재중", "종료", "전체"].map((v) => ({ v, n: 0 }));
   const 구분목록: 값개수[] = [{ v: "자사", n: 0 }, { v: "경쟁사", n: 0 }];
   const 일수목록: 값개수[] = Object.keys(운영일수_구간).map((v) => ({ v, n: 0 }));
   const 정렬목록: 값개수[] = Object.keys(정렬식).map((v) => ({ v, n: 0 }));
-  const 마지막쪽 = Math.max(1, Math.ceil(건수 / 쪽크기));
+  const 마지막쪽 = 광고주별 ? 1 : Math.max(1, Math.ceil(건수 / 쪽크기));
+  const 그룹건수 = new Map((목록.그룹 ?? []).map((x) => [x.v, x.n]));
 
   return (
     <div className="px-7 py-6">
@@ -179,7 +191,7 @@ export default async function 탐색({
       {!오류 && (
         <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-5">
           <Link href="/"><지표 값={전체현황.게재중} 단위="건" 설명="지금 게재 중인 소재" /></Link>
-          <Link href="/?신규=1"><지표 값={전체현황.신규} 단위="건" 설명={`최근 ${신규_일수}일 새로 발견`} /></Link>
+          <Link href="/?신규=1"><지표 값={전체현황.신규} 단위="건" 설명={`최근 ${신규_일수}일 새로 시작`} /></Link>
           <지표 값={전체현황.광고주} 단위="곳" 설명="게재 중인 광고주" />
           <지표 값={전체현황.전체} 단위="건" 설명="지금까지 수집한 전체" />
           <Link href="/?검수=1&상태=전체">
@@ -218,7 +230,7 @@ export default async function 탐색({
           NEW만
         </Link>
         <Link
-          href={조건링크({ ...조건, 쪽: "" }, "검수", 조건.검수 ? "" : "1")}
+          href={조건.검수 ? 조건링크({ ...조건, 쪽: "" }, "검수", "") : 조건링크({ ...조건, 쪽: "", 상태: "전체" }, "검수", "1")}
           className={`rounded-full border px-4 py-2 text-[13px] ${
             조건.검수 ? "border-[#c23934] bg-[#fff1f0] font-semibold text-[#c23934]" : "border-[#e4e6eb] bg-white text-[#5c626d]"
           }`}
@@ -228,7 +240,7 @@ export default async function 탐색({
       </form>
 
       <div className="mb-7 rounded-xl border border-[#e9eaee] bg-white px-4 py-2">
-        <칩줄 제목="상태" 키="상태" 현재값={상태} 목록={상태목록} 조건={{ ...조건, 쪽: "" }} />
+        <칩줄 제목="상태" 키="상태" 현재값={상태} 목록={상태목록} 조건={{ ...조건, 쪽: "" }} 전체없음 />
         <칩줄 제목="업권" 키="업권" 현재값={조건.업권 ?? ""} 목록={목록.업권 ?? []} 조건={{ ...조건, 쪽: "" }} />
         <칩줄 제목="광고주" 키="그룹" 현재값={조건.그룹 ?? ""} 목록={목록.그룹 ?? []} 조건={{ ...조건, 쪽: "" }} />
         <칩줄 제목="구분" 키="구분" 현재값={조건.구분 ?? ""} 목록={구분목록} 조건={{ ...조건, 쪽: "" }} />
@@ -249,7 +261,8 @@ export default async function 탐색({
 
       {!오류 && (
         <div className="mb-4 flex items-center gap-2 text-[13px] text-[#8a8f98]">
-          검색 결과 <b className="text-[#16181d]">{건수.toLocaleString()}</b>건 · 이 쪽 광고주 {묶음.size}곳
+          검색 결과 <b className="text-[#16181d]">{건수.toLocaleString()}</b>건 · 광고주 {광고주별 ? 묶음.size : 1}곳
+          {광고주별 && <span>· 광고주마다 최신 {광고주당}건씩</span>}
           {마지막쪽 > 1 && <span>· {쪽}/{마지막쪽}쪽</span>}
         </div>
       )}
@@ -267,7 +280,12 @@ export default async function 탐색({
             {소재들[0]?.category && (
               <span className="rounded-full bg-[#f2f3f5] px-2 py-0.5 text-[11px] text-[#5c626d]">{소재들[0].category}</span>
             )}
-            <span className="rounded-full bg-[#f2f3f5] px-2 py-0.5 text-[11px] text-[#5c626d]">{소재들.length}건</span>
+            <span className="rounded-full bg-[#f2f3f5] px-2 py-0.5 text-[11px] text-[#5c626d]">{그룹건수.get(그룹명) ?? 소재들.length}건</span>
+            {광고주별 && (그룹건수.get(그룹명) ?? 0) > 소재들.length && (
+              <Link href={조건링크({ ...조건, 쪽: "" }, "그룹", 그룹명)} className="ml-auto text-[12px] font-medium text-[#334fff] hover:underline">
+                전체 {그룹건수.get(그룹명)}건 보기 →
+              </Link>
+            )}
           </div>
 
           <div className="grid grid-cols-[repeat(auto-fill,minmax(196px,1fr))] gap-4">

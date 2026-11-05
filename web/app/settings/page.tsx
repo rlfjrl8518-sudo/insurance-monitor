@@ -64,7 +64,8 @@ export default async function 설정() {
     for (const r of 현황) if (r.그룹) (그룹[r.그룹] ??= []).push(r.advertiser);
   }
   const 묶인페이지 = new Set(Object.values(그룹).flat());
-  const 미지정 = 현황.map((r) => r.advertiser).filter((a) => !묶인페이지.has(a)).sort();
+  // 페이지명이 그룹명과 같으면(예: 옛 '삼성화재' 페이지와 '삼성화재' 그룹) 화면에선 이미 한 광고주로 합쳐 보인다.
+  const 미지정 = 현황.map((r) => r.advertiser).filter((a) => !묶인페이지.has(a) && !(a in 그룹)).sort();
 
   const 카테고리이름 =
     Object.keys(카테고리).length > 0 ? Object.keys(카테고리) : ["손해보험", "생명보험", "GA"];
@@ -306,7 +307,7 @@ export default async function 설정() {
       <section className="mt-8 mb-4">
         <h2 className="mb-1 text-[14px] font-bold">AI 분류 모델</h2>
         <p className="mb-3 text-[12px] text-[#8a8f98]">
-          Vertex AI(GCP 프로젝트 insurance-monitor-playd)의 Gemini를 씁니다. 키는 GitHub Secrets(<code>GCP_SERVICE_ACCOUNT_JSON</code>)에만 둡니다.
+          Vertex AI(GCP 프로젝트 insurance-monitor-playd)의 Gemini를 씁니다. 키 파일 없이 Cloud Run 서비스계정 권한으로 호출합니다.
           비워 두면 기본 후보(gemini-3-flash-preview → gemini-3-flash → gemini-2.5-flash) 중 응답하는 첫 모델을 씁니다.
         </p>
         <form action={모델_저장} className="rounded-xl border border-[#e9eaee] bg-white p-5">

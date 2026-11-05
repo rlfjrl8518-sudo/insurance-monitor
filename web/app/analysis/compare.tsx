@@ -81,7 +81,7 @@ export async function 경쟁비교({ 업권, 범위 }: { 업권: string; 범위:
     [운영들, 소재들, ...분포들] = (await Promise.all([
       sql`select coalesce(advertiser_group, advertiser) g, bool_or(segment = '자사') 자사,
                  count(*) filter (where status <> '종료')::int 게재중,
-                 count(*) filter (where first_seen_on >= current_date - 30)::int 신규30,
+                 count(*) filter (where coalesce(started_on, first_seen_on) >= current_date - 30)::int 신규30,
                  (percentile_cont(0.5) within group (order by running_days) filter (where status = '종료'))::int 수명,
                  avg(variant_count)::float 변형,
                  (count(*) filter (where display_format = 'VIDEO'))::float / nullif(count(*), 0) 영상

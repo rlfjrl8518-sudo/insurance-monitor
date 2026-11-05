@@ -102,9 +102,12 @@ export const 광고컬럼 = sql.unsafe(`ad_id, advertiser, advertiser_group, seg
 /** '신규'는 상태가 아니라 표시다. 최근 이 일수 안에 처음 발견된 게재중 소재. */
 export const 신규_일수 = 7;
 
-export function 신규인가(행: Pick<광고, "first_seen_on" | "status">) {
-  if (!행.first_seen_on || 행.status === "종료") return false;
-  const d = new Date(행.first_seen_on as unknown as string).getTime();
+/** NEW = 광고 시작일(메타 기준)이 최근 며칠 안. 예전엔 '처음 발견일'이라 수집 방식을 바꾼 날
+ *  몇 달 된 소재 120건이 한꺼번에 NEW가 됐다(2026-11-05). 시작일이 없을 때만 발견일을 쓴다. */
+export function 신규인가(행: Pick<광고, "first_seen_on" | "started_on" | "status">) {
+  const 기준 = 행.started_on || 행.first_seen_on;
+  if (!기준 || 행.status === "종료") return false;
+  const d = new Date(기준 as unknown as string).getTime();
   return Date.now() - d <= 신규_일수 * 86400000;
 }
 

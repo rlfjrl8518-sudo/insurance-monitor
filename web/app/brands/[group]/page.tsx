@@ -46,7 +46,7 @@ export default async function 브랜드상세({ params }: { params: Promise<{ gr
 
   const [현황, 게재중, 주별, 소재유형, 보종, 소구, 랜딩, 수집] = (await Promise.all([
     sql`select count(*)::int 전체, count(*) filter (where status <> '종료')::int 게재중,
-               count(*) filter (where status <> '종료' and first_seen_on >= current_date - 7)::int 신규,
+               count(*) filter (where status <> '종료' and coalesce(started_on, first_seen_on) >= current_date - 7)::int 신규,
                count(*) filter (where status = '종료' and ended_on >= current_date - 7)::int 이번주종료,
                coalesce(percentile_cont(0.5) within group (order by running_days)
                         filter (where status = '종료'), 0)::int 수명중앙,
@@ -54,10 +54,10 @@ export default async function 브랜드상세({ params }: { params: Promise<{ gr
                array_agg(distinct advertiser) 페이지들
         from ads where ${그룹식}`,
     sql`select ${광고컬럼} from ads where ${그룹식} and status <> '종료'
-        order by first_seen_on desc nulls last, running_days desc limit 60`,
-    sql`select to_char(date_trunc('week', first_seen_on), 'MM/DD') v, count(*)::int n
-        from ads where ${그룹식} and first_seen_on >= current_date - interval '12 weeks'
-        group by date_trunc('week', first_seen_on) order by date_trunc('week', first_seen_on)`,
+        order by coalesce(started_on, first_seen_on) desc nulls last, running_days desc limit 60`,
+    sql`select to_char(date_trunc('week', coalesce(started_on, first_seen_on)), 'MM/DD') v, count(*)::int n
+        from ads where ${그룹식} and coalesce(started_on, first_seen_on) >= current_date - interval '12 weeks'
+        group by date_trunc('week', coalesce(started_on, first_seen_on)) order by date_trunc('week', coalesce(started_on, first_seen_on))`,
     sql`select creative_type v, count(*)::int n from ads where ${그룹식} and status <> '종료' and creative_type <> '' group by 1 order by 2 desc`,
     sql`select insurance_type v, count(*)::int n from ads where ${그룹식} and status <> '종료' and insurance_type <> '' group by 1 order by 2 desc`,
     sql`select appeal_point v, count(*)::int n from ads where ${그룹식} and status <> '종료' and appeal_point <> '' group by 1 order by 2 desc`,
@@ -94,7 +94,7 @@ export default async function 브랜드상세({ params }: { params: Promise<{ gr
 
       <div className="mb-7 grid grid-cols-2 gap-3 sm:grid-cols-5">
         <지표 값={h.게재중} 단위="건" 설명="게재 중" />
-        <지표 값={h.신규} 단위="건" 설명="최근 7일 새로 발견" />
+        <지표 값={h.신규} 단위="건" 설명="최근 7일 새로 시작" />
         <지표 값={h.이번주종료} 단위="건" 설명="최근 7일 종료" />
         <지표 값={h.수명중앙} 단위="일" 설명="종료 소재 수명 중앙값" />
         <지표 값={h.전체} 단위="건" 설명="누적 수집" />

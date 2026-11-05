@@ -8,14 +8,13 @@ export const metadata: Metadata = {
 };
 
 // 좌측 고정 내비. REFHUB처럼 어두운 사이드바로 두어 본문(밝은 배경)과 층을 나눈다.
-// 아직 안 만든 화면은 눌러도 빈 화면이 뜨지 않게 비활성으로 둔다.
-const 메뉴: { 이름: string; 경로: string; 아이콘: string; 준비됨?: boolean }[] = [
-  { 이름: "탐색", 경로: "/", 아이콘: "◎", 준비됨: true },
-  { 이름: "변화", 경로: "/changes", 아이콘: "↗", 준비됨: true },
-  { 이름: "브랜드", 경로: "/brands", 아이콘: "▤", 준비됨: true },
-  { 이름: "분석", 경로: "/analysis", 아이콘: "◫", 준비됨: true },
-  { 이름: "보드", 경로: "/boards", 아이콘: "❏", 준비됨: true },
-  { 이름: "설정", 경로: "/settings", 아이콘: "⚙", 준비됨: true },
+const 메뉴: { 이름: string; 경로: string; 아이콘: string }[] = [
+  { 이름: "탐색", 경로: "/", 아이콘: "◎" },
+  { 이름: "변화", 경로: "/changes", 아이콘: "↗" },
+  { 이름: "브랜드", 경로: "/brands", 아이콘: "▤" },
+  { 이름: "분석", 경로: "/analysis", 아이콘: "◫" },
+  { 이름: "보드", 경로: "/boards", 아이콘: "❏" },
+  { 이름: "설정", 경로: "/settings", 아이콘: "⚙" },
 ];
 
 export default function RootLayout({
@@ -36,35 +35,22 @@ export default function RootLayout({
             </div>
 
             <nav className="flex-1 px-3">
-              {메뉴.map((m) =>
-                m.준비됨 ? (
-                  <Link
-                    key={m.경로}
-                    href={m.경로}
-                    className="mb-0.5 flex items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] font-medium text-white/80 transition hover:bg-white/10 hover:text-white"
-                  >
-                    <span className="w-4 text-center text-[12px] opacity-70">
-                      {m.아이콘}
-                    </span>
-                    {m.이름}
-                  </Link>
-                ) : (
-                  <span
-                    key={m.경로}
-                    title="준비 중"
-                    className="mb-0.5 flex cursor-default items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] text-white/30"
-                  >
-                    <span className="w-4 text-center text-[12px]">{m.아이콘}</span>
-                    {m.이름}
-                  </span>
-                ),
-              )}
+              {메뉴.map((m) => (
+                <Link
+                  key={m.경로}
+                  href={m.경로}
+                  className="mb-0.5 flex items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] font-medium text-white/80 transition hover:bg-white/10 hover:text-white"
+                >
+                  <span className="w-4 text-center text-[12px] opacity-70">{m.아이콘}</span>
+                  {m.이름}
+                </Link>
+              ))}
             </nav>
 
             <div className="px-5 py-5 text-[11px] leading-relaxed text-white/30">
               수집 자동화 · 하루 2회
               <br />
-              GitHub Actions 예약 실행(지연될 수 있음)
+              09:05 · 15:05 (Cloud Run 예약 실행)
             </div>
           </aside>
 
