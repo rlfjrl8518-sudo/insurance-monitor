@@ -1,0 +1,8 @@
+*
+!Dockerfile
+!requirements.txt
+!config.json
+!*.py
+!src/
+!web/db/schema.sql
+src/__pycache__

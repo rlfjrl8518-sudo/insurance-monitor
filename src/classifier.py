@@ -325,17 +325,18 @@ class 클라이언트:
     """Vertex AI의 OpenAI 호환 엔드포인트. 액세스 토큰이 1시간마다 만료돼 호출 전에 갱신한다."""
 
     def __init__(self, 설정):
-        from google.oauth2 import service_account
         from openai import OpenAI
 
+        from src.gcp import 자격증명
+
         ai = 설정["ai"]
-        키파일 = ai.get("service_account_file")
-        if not 키파일 or not os.path.exists(키파일):
-            raise SystemExit("Vertex AI 서비스계정 키가 없습니다. GitHub Secret GCP_SERVICE_ACCOUNT_JSON을 확인하세요.")
-        self._인증 = service_account.Credentials.from_service_account_file(
-            키파일, scopes=["https://www.googleapis.com/auth/cloud-platform"])
+        # Cloud Run에서는 키 파일 없이 잡의 서비스계정으로 인증한다. 로컬은 키 파일 경로를 준다.
+        try:
+            self._인증, 기본프로젝트 = 자격증명(ai.get("service_account_file"))
+        except Exception as e:
+            raise SystemExit(f"Vertex AI 인증 정보를 찾지 못했습니다: {e}")
         self._잠금 = threading.Lock()
-        프로젝트 = ai.get("project") or self._인증.project_id
+        프로젝트 = ai.get("project") or 기본프로젝트
         위치 = ai.get("location", "global")
         호스트 = "aiplatform.googleapis.com" if 위치 == "global" else f"{위치}-aiplatform.googleapis.com"
         self._sdk = OpenAI(api_key="갱신전", max_retries=ai.get("max_retries", 4),

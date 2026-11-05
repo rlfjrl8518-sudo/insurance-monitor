@@ -19,9 +19,11 @@ export default async function 변화({ searchParams }: { searchParams: Promise<{
   let 신규보종: 진입[] = [];
   let 장수: 장수종료[] = [];
   let 새소재: 썸네일[] = [];
+  let 추이: { v: string; n: number }[] = [];
+  let 주별: { v: string; n: number }[] = [];
   let 오류: string | null = null;
   try {
-    [광고주, 신규보종, 장수, 새소재] = (await Promise.all([
+    [광고주, 신규보종, 장수, 새소재, 추이, 주별] = (await Promise.all([
       sql`select coalesce(advertiser_group, advertiser) g,
                  count(*) filter (where first_seen_on >= current_date - ${일}::int)::int 이번,
                  count(*) filter (where first_seen_on >= current_date - ${일 * 2}::int
@@ -48,7 +50,12 @@ export default async function 변화({ searchParams }: { searchParams: Promise<{
       sql`select ad_id, coalesce(advertiser_group, advertiser) g, image_url, insurance_type
           from ads where first_seen_on >= current_date - ${일}::int and status <> '종료' and segment <> '자사'
           order by first_seen_on desc, variant_count desc nulls last limit 24`,
-    ])) as unknown as [광고주변화[], 진입[], 장수종료[], 썸네일[]];
+      sql`select to_char(seen_on, 'MM/DD') v, count(*)::int n from ad_sightings
+          where seen_on >= current_date - 42 group by seen_on order by seen_on`,
+      sql`select to_char(date_trunc('week', first_seen_on), 'MM/DD') v, count(*)::int n
+          from ads where first_seen_on >= current_date - interval '12 weeks'
+          group by date_trunc('week', first_seen_on) order by date_trunc('week', first_seen_on)`,
+    ])) as unknown as [광고주변화[], 진입[], 장수종료[], 썸네일[], { v: string; n: number }[], { v: string; n: number }[]];
   } catch (e) {
     오류 = e instanceof Error ? e.message : String(e);
   }
@@ -67,6 +74,34 @@ export default async function 변화({ searchParams }: { searchParams: Promise<{
         ))}
       </div>
       {오류 && <div className="mb-5 rounded-xl bg-[#ebf1fd] p-4 text-[13px] text-[#2840d9]">{오류}</div>}
+
+      <div className="mb-8 grid gap-4 lg:grid-cols-2">
+        {[
+          ["게재 중 소재 수 (일별, 최근 6주)", 추이, "2026-11 수집 개편 이후부터 쌓입니다."],
+          ["새로 발견된 소재 (주별, 12주)", 주별, "처음 발견된 주 기준입니다."],
+        ].map(([제목, 값들, 메모]) => {
+          const 목록 = 값들 as { v: string; n: number }[];
+          const 최대 = Math.max(1, ...목록.map((x) => x.n));
+          return (
+            <section key={제목 as string} className="rounded-xl border border-[#e9eaee] bg-white p-5">
+              <h2 className="text-[13px] font-bold">{제목 as string}</h2>
+              <p className="mb-3 text-[11px] text-[#a7adb8]">{메모 as string}</p>
+              <div className="flex h-[110px] items-end gap-[3px]">
+                {목록.length === 0 && <div className="w-full self-center text-center text-[12px] text-[#8a8f98]">기록 없음</div>}
+                {목록.map((x) => (
+                  <div key={x.v} title={`${x.v} ${x.n}건`} className="flex-1 rounded-t bg-[#8496ff] hover:bg-[#334fff]" style={{ height: `${Math.max(3, (x.n / 최대) * 100)}%` }} />
+                ))}
+              </div>
+              {목록.length > 0 && (
+                <div className="mt-1 flex justify-between text-[10px] text-[#a7adb8]">
+                  <span>{목록[0].v}</span>
+                  <span>{목록[목록.length - 1].v}</span>
+                </div>
+              )}
+            </section>
+          );
+        })}
+      </div>
 
       <section className="mb-8">
         <h2 className="mb-3 text-[14px] font-bold">광고주별 신규 투입</h2>

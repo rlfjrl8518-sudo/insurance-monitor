@@ -1,14 +1,18 @@
 import Link from "next/link";
 import { sql } from "@/lib/db";
+import { 경쟁비교 } from "./compare";
 import { 교차분석 } from "./crosstab";
 import { 인사이트 } from "./insights";
 
 export const dynamic = "force-dynamic";
 
+/** 화면마다 답하는 질문이 하나씩이다. 겹치면 어느 화면을 봐야 할지 모르게 된다.
+ *  최근 무엇이 바뀌었는지는 '변화' 메뉴가 따로 맡는다. */
 const 탭들 = [
-  { 키: "요약", 설명: "지금 무엇이 돌고 있고, 무엇이 오래 버티는지" },
-  { 키: "교차", 설명: "광고주·분류축을 겹쳐 비중과 조합을 비교 (예전 경쟁 비교·교차분석)" },
-  { 키: "오퍼", 설명: "광고에 적힌 보험료·보장금액 표기를 광고주별로 모아 보기" },
+  { 키: "인사이트", 이름: "인사이트", 질문: "이 시장에서 반복되는 공식은?", 설명: "전체 기간 데이터에서 자동으로 뽑은 패턴 — 보종별 특징 소구, 보험사별 주력, 오래 가는 소재의 조건" },
+  { 키: "경쟁", 이름: "경쟁 비교", 질문: "우리는 경쟁사와 어디가 다른가?", 설명: "자사 vs 경쟁사 고정 비교 — 게재 점유, 운영 방식, 경쟁사만 쓰는 공백" },
+  { 키: "교차", 이름: "교차분석", 질문: "내가 궁금한 두 축의 조합은?", 설명: "행·열·광고주·기간을 직접 골라 보는 자유 피벗 — 비중 막대 / 건수 표 / CSV" },
+  { 키: "오퍼", 이름: "오퍼", 질문: "누가 얼마를 내세우나?", 설명: "광고에 적힌 보험료·보장금액 표기를 광고주별로 모아 보기" },
 ] as const;
 
 type 오퍼행 = {
@@ -102,32 +106,60 @@ export default async function 분석({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const p = await searchParams;
-  const 탭 = 탭들.find((t) => t.키 === p.탭)?.키 ?? "요약";
+  // 예전 주소(탭=요약)는 인사이트로 받는다.
+  const 탭 = 탭들.find((t) => t.키 === p.탭)?.키 ?? "인사이트";
   const 한값 = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v);
+  const 업권 = 한값(p.업권) ?? "";
+  const 지금탭 = 탭들.find((t) => t.키 === 탭)!;
+  let 업권목록: { v: string; n: number }[] = [];
+  try {
+    업권목록 = (await sql`select category v, count(*)::int n from ads
+      where category is not null and status <> '종료' group by 1 order by n desc`) as unknown as typeof 업권목록;
+  } catch {
+    // 업권 칩은 덤이다
+  }
 
   return (
     <div className="px-7 py-6">
       <h1 className="text-[20px] font-bold tracking-tight">분석</h1>
-      <p className="mt-1 text-[13px] text-[#8a8f98]">{탭들.find((t) => t.키 === 탭)!.설명}</p>
-      <div className="mt-5 mb-6 flex gap-1 border-b border-[#e9eaee]">
+      <div className="mt-5 mb-4 grid grid-cols-2 gap-2 lg:grid-cols-4">
         {탭들.map((t) => (
           <Link
             key={t.키}
-            href={`/analysis?탭=${encodeURIComponent(t.키)}`}
-            className={`-mb-px border-b-2 px-4 py-2 text-[13px] font-semibold ${
-              탭 === t.키 ? "border-[#334fff] text-[#334fff]" : "border-transparent text-[#8a8f98] hover:text-[#16181d]"
+            href={`/analysis?${new URLSearchParams({ 탭: t.키, 업권 })}`}
+            className={`rounded-xl border px-4 py-3 transition ${
+              탭 === t.키 ? "border-[#334fff] bg-[#f5f7ff]" : "border-[#e9eaee] bg-white hover:border-[#c3cbe4]"
             }`}
           >
-            {t.키}
+            <div className={`text-[13px] font-bold ${탭 === t.키 ? "text-[#334fff]" : ""}`}>{t.이름}</div>
+            <div className="mt-0.5 text-[12px] text-[#8a8f98]">{t.질문}</div>
           </Link>
         ))}
       </div>
-      {탭 === "요약" && <인사이트 />}
+      <p className="mb-4 text-[12px] text-[#8a8f98]">{지금탭.설명}</p>
+      {탭 !== "오퍼" && (
+        <div className="mb-6 flex flex-wrap items-center gap-1.5">
+          <span className="mr-1 text-[12px] font-medium text-[#8a8f98]">업권</span>
+          {[{ v: "", n: 0 }, ...업권목록].map((x) => (
+            <Link
+              key={x.v || "전체"}
+              href={`/analysis?${new URLSearchParams({ 탭, 업권: x.v })}`}
+              className={`rounded-full border px-3 py-1.5 text-[12px] ${
+                업권 === x.v ? "border-[#334fff] bg-[#334fff] font-semibold text-white" : "border-[#e4e6eb] bg-white text-[#5c626d]"
+              }`}
+            >
+              {x.v || "전체"} {x.n > 0 && <span className="opacity-60">{x.n}</span>}
+            </Link>
+          ))}
+        </div>
+      )}
+      {탭 === "인사이트" && <인사이트 업권={업권} />}
+      {탭 === "경쟁" && <경쟁비교 업권={업권} 범위={한값(p.범위) ?? ""} />}
       {탭 === "교차" && (
         <교차분석
           p={{
             행: 한값(p.행), 열: 한값(p.열), 상태: 한값(p.상태), 보기: 한값(p.보기),
-            광고주: p.광고주, 시작: 한값(p.시작), 끝: 한값(p.끝),
+            광고주: p.광고주, 시작: 한값(p.시작), 끝: 한값(p.끝), 업권,
           }}
         />
       )}

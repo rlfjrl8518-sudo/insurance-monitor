@@ -17,7 +17,8 @@ type 브랜드 = {
 
 type 썸네일 = { 그룹: string; image_url: string | null; status: string };
 
-export default async function 브랜드목록() {
+export default async function 브랜드목록({ searchParams }: { searchParams: Promise<{ 업권?: string }> }) {
+  const 선택업권 = (await searchParams).업권 ?? "";
   let 브랜드들: 브랜드[] = [];
   let 썸네일들: 썸네일[] = [];
   let 오류: string | null = null;
@@ -51,6 +52,19 @@ export default async function 브랜드목록() {
     오류 = e instanceof Error ? e.message : String(e);
   }
 
+  // 업권별로 묶는다. 자사가 있는 업권을 맨 앞에, 업권이 비어 있는 광고주는 '미지정'으로 맨 뒤에.
+  const 업권묶음 = new Map<string, 브랜드[]>();
+  for (const b of 브랜드들) {
+    const u = b.업권 ?? "미지정";
+    (업권묶음.get(u) ?? 업권묶음.set(u, []).get(u)!).push(b);
+  }
+  const 업권순서 = [...업권묶음.keys()].sort(
+    (a, b) =>
+      Number(업권묶음.get(b)!.some((x) => x.자사)) - Number(업권묶음.get(a)!.some((x) => x.자사)) ||
+      Number(a === "미지정") - Number(b === "미지정") ||
+      업권묶음.get(b)!.length - 업권묶음.get(a)!.length,
+  );
+
   const 썸네일맵 = new Map<string, 썸네일[]>();
   for (const t of 썸네일들) {
     (썸네일맵.get(t.그룹) ?? 썸네일맵.set(t.그룹, []).get(t.그룹)!).push(t);
@@ -69,8 +83,27 @@ export default async function 브랜드목록() {
         </div>
       )}
 
-      <div className="mt-6 grid gap-4 xl:grid-cols-2">
-        {브랜드들.map((b) => (
+      <div className="mt-5 flex flex-wrap gap-1.5">
+        {["", ...업권순서].map((u) => (
+          <Link
+            key={u || "전체"}
+            href={u ? `/brands?업권=${encodeURIComponent(u)}` : "/brands"}
+            className={`rounded-full border px-3 py-1.5 text-[12px] ${
+              선택업권 === u ? "border-[#334fff] bg-[#334fff] font-semibold text-white" : "border-[#e4e6eb] bg-white text-[#5c626d]"
+            }`}
+          >
+            {u || "전체"} <span className="opacity-60">{u ? (업권묶음.get(u)?.length ?? 0) : 브랜드들.length}</span>
+          </Link>
+        ))}
+      </div>
+
+      {업권순서.filter((u) => !선택업권 || u === 선택업권).map((u) => (
+        <section key={u} className="mt-7">
+          <h2 className="mb-3 text-[15px] font-bold">
+            {u} <span className="text-[12px] font-normal text-[#a7adb8]">{업권묶음.get(u)!.length}곳</span>
+          </h2>
+          <div className="grid gap-4 xl:grid-cols-2">
+            {업권묶음.get(u)!.map((b) => (
           <section
             key={b.그룹}
             className="rounded-xl border border-[#e9eaee] bg-white p-4 shadow-[0_1px_2px_rgba(16,24,40,0.04)]"
@@ -132,8 +165,10 @@ export default async function 브랜드목록() {
               ))}
             </div>
           </section>
-        ))}
-      </div>
+            ))}
+          </div>
+        </section>
+      ))}
     </div>
   );
 }

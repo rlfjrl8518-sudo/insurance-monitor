@@ -1,0 +1,57 @@
+name: GCP 이전 (1회용)
+
+# GitHub Secrets에만 있는 값(시트·드라이브 설정, Neon 주소)을 GCP Secret Manager로 옮기고,
+# Neon DB를 Cloud SQL로 복사한다. 값은 로그에 찍히지 않는다. 이전이 끝나면 이 파일은 지운다.
+on:
+  workflow_dispatch: {}
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install "psycopg[binary]>=3.1"
+
+      - uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SERVICE_ACCOUNT_JSON }}
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: 시크릿 옮기기
+        env:
+          NEON_DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          GOOGLE_SHEETS_ID: ${{ secrets.GOOGLE_SHEETS_ID }}
+          GOOGLE_DRIVE_FOLDER_ID: ${{ secrets.GOOGLE_DRIVE_FOLDER_ID }}
+          DRIVE_UPLOAD_WEBAPP_URL: ${{ secrets.DRIVE_UPLOAD_WEBAPP_URL }}
+          DRIVE_UPLOAD_SECRET: ${{ secrets.DRIVE_UPLOAD_SECRET }}
+          DASHBOARD_WEBAPP_URL: ${{ secrets.DASHBOARD_WEBAPP_URL }}
+        run: |
+          for 이름 in NEON_DATABASE_URL GOOGLE_SERVICE_ACCOUNT_JSON GOOGLE_SHEETS_ID GOOGLE_DRIVE_FOLDER_ID \
+                     DRIVE_UPLOAD_WEBAPP_URL DRIVE_UPLOAD_SECRET DASHBOARD_WEBAPP_URL; do
+            if [ -n "${!이름}" ]; then
+              printf '%s' "${!이름}" | gcloud secrets versions add "$이름" --data-file=- --project insurance-monitor-playd >/dev/null
+              echo "옮김: $이름"
+            else
+              echo "비어 있음: $이름"
+            fi
+          done
+
+      - name: Neon → Cloud SQL 복사
+        env:
+          SOURCE_DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          curl -sSLo cloud-sql-proxy https://storage.googleapis.com/cloud-sql-connectors/cloud-sql-proxy/v2.14.1/cloud-sql-proxy.linux.amd64
+          chmod +x cloud-sql-proxy
+          ./cloud-sql-proxy insurance-monitor-playd:asia-northeast3:monitor-db --port 5432 &
+          sleep 6
+          PW=$(gcloud secrets versions access latest --secret=DB_PASSWORD --project insurance-monitor-playd)
+          echo "::add-mask::$PW"
+          TARGET_DATABASE_URL="postgresql://monitor:${PW}@127.0.0.1:5432/monitor" python copy_db.py
