@@ -123,7 +123,19 @@ export default async function 분석({
 
   return (
     <div className="px-7 py-6">
-      <h1 className="text-[20px] font-bold tracking-tight">분석</h1>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h1 className="text-[20px] font-bold tracking-tight">분석</h1>
+        {/* 한화 월간 운영 덱 양식의 PPT. app/report/route.ts */}
+        <form action="/report" className="flex items-center gap-2 text-[12px]">
+          <input
+            type="month"
+            name="월"
+            defaultValue={new Date(new Date().setDate(0)).toISOString().slice(0, 7)}
+            className="rounded-lg border border-[#e4e6eb] bg-white px-2 py-1.5"
+          />
+          <button className="rounded-lg bg-[#334fff] px-3 py-1.5 font-semibold text-white">월간 보고서 PPT</button>
+        </form>
+      </div>
       <div className="mt-5 mb-4 grid grid-cols-2 gap-2 lg:grid-cols-4">
         {탭들.map((t) => (
           <Link
